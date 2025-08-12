@@ -32,7 +32,7 @@ export default function ExampleAnalysisModal() {
   } as const;
 
   return (
-    <div className="w-full">
+    <div className="w-full sm:w-auto">
       <Button
         onClick={() => setOpen(true)}
         variant="outline"
