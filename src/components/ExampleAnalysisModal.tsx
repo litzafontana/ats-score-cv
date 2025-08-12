@@ -42,7 +42,7 @@ export default function ExampleAnalysisModal() {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-2xl w-[92vw] rounded-2xl p-0 overflow-hidden bg-card text-card-foreground shadow-xl">
+        <DialogContent className="w-[92vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[90vh] overflow-y-auto rounded-2xl p-0 bg-card text-card-foreground shadow-xl">
           <DialogHeader className="border-b p-5">
             <DialogTitle className="text-xl">Exemplo de Resultado ATS</DialogTitle>
           </DialogHeader>
