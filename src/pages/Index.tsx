@@ -50,7 +50,15 @@ const Index = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Button variant="hero" size="lg" className="shadow-2xl">
+            <Button 
+              variant="hero" 
+              size="lg" 
+              className="shadow-2xl"
+              onClick={() => {
+                const formSection = document.getElementById('diagnostic-form');
+                formSection?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
               Analisar meu CV grátis
               <ArrowRight className="h-5 w-5" />
             </Button>
@@ -124,7 +132,7 @@ const Index = () => {
       </section>
 
       {/* Main Form */}
-      <section className="py-16 px-4">
+      <section id="diagnostic-form" className="py-16 px-4">
         <div className="container mx-auto">
           <DiagnosticForm />
         </div>
