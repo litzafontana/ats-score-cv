@@ -1,5 +1,6 @@
 import { DiagnosticForm } from "@/components/DiagnosticForm";
 import { ScoreProgress } from "@/components/ScoreProgress";
+import ExampleAnalysisModal from "@/components/ExampleAnalysisModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -62,9 +63,7 @@ const Index = () => {
               Analisar meu CV grátis
               <ArrowRight className="h-5 w-5" />
             </Button>
-            <Button variant="outline" size="lg">
-              Ver exemplo de análise
-            </Button>
+            <ExampleAnalysisModal />
           </div>
 
           {/* Preview Score Card */}
