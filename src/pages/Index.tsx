@@ -1,6 +1,7 @@
 import { DiagnosticForm } from "@/components/DiagnosticForm";
 import { ScoreProgress } from "@/components/ScoreProgress";
 import ExampleAnalysisModal from "@/components/ExampleAnalysisModal";
+import FAQSection from "@/components/FAQSection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -136,6 +137,9 @@ const Index = () => {
           <DiagnosticForm />
         </div>
       </section>
+
+      {/* FAQ Section */}
+      <FAQSection />
 
       {/* Footer */}
       <footer className="border-t bg-white/50 backdrop-blur-sm py-8 px-4">
