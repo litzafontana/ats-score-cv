@@ -7,14 +7,161 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.4"
   }
   public: {
     Tables: {
-      [_ in never]: never
+      arquivos: {
+        Row: {
+          created_at: string | null
+          diagnostico_id: string | null
+          id: string
+          nome_arquivo: string
+          storage_path: string | null
+          tamanho_bytes: number | null
+          tipo_mime: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          diagnostico_id?: string | null
+          id?: string
+          nome_arquivo: string
+          storage_path?: string | null
+          tamanho_bytes?: number | null
+          tipo_mime?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          diagnostico_id?: string | null
+          id?: string
+          nome_arquivo?: string
+          storage_path?: string | null
+          tamanho_bytes?: number | null
+          tipo_mime?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "arquivos_diagnostico_id_fkey"
+            columns: ["diagnostico_id"]
+            isOneToOne: false
+            referencedRelation: "diagnosticos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bd_ativo: {
+        Row: {
+          created_at: string
+          id: number
+          num: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          num?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          num?: number | null
+        }
+        Relationships: []
+      }
+      diagnosticos: {
+        Row: {
+          alertas_top2: Json | null
+          created_at: string | null
+          cv_content: string | null
+          email: string
+          id: string
+          job_description: string | null
+          nota_ats: number | null
+          pago: boolean | null
+          resultado_completo: Json | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          alertas_top2?: Json | null
+          created_at?: string | null
+          cv_content?: string | null
+          email: string
+          id?: string
+          job_description?: string | null
+          nota_ats?: number | null
+          pago?: boolean | null
+          resultado_completo?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          alertas_top2?: Json | null
+          created_at?: string | null
+          cv_content?: string | null
+          email?: string
+          id?: string
+          job_description?: string | null
+          nota_ats?: number | null
+          pago?: boolean | null
+          resultado_completo?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      pagamentos: {
+        Row: {
+          created_at: string | null
+          diagnostico_id: string | null
+          external_id: string | null
+          id: string
+          metadata: Json | null
+          moeda: string | null
+          status: string | null
+          stripe_payment_intent_id: string | null
+          stripe_session_id: string | null
+          updated_at: string | null
+          valor_centavos: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          diagnostico_id?: string | null
+          external_id?: string | null
+          id?: string
+          metadata?: Json | null
+          moeda?: string | null
+          status?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          updated_at?: string | null
+          valor_centavos?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          diagnostico_id?: string | null
+          external_id?: string | null
+          id?: string
+          metadata?: Json | null
+          moeda?: string | null
+          status?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          updated_at?: string | null
+          valor_centavos?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagamentos_diagnostico_id_fkey"
+            columns: ["diagnostico_id"]
+            isOneToOne: false
+            referencedRelation: "diagnosticos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
