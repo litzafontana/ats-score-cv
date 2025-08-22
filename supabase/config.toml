@@ -1,1 +1,16 @@
 project_id = "hytkdtgndmljgxwuutyu"
+
+[auth]
+enabled = true
+
+[database]
+enabled = true
+
+[functions.diagnostico]
+verify_jwt = false
+
+[functions.diagnostico-get]
+verify_jwt = false
+
+[functions.checkout]
+verify_jwt = false

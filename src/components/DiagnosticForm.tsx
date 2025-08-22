@@ -68,19 +68,76 @@ export function DiagnosticForm() {
 
     setIsAnalyzing(true);
     
-    // Simulate API call for now
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Prepare CV content
+      let cvContent = '';
+      if (cvInputType === "upload" && cvFile) {
+        cvContent = `[Arquivo enviado: ${cvFile.name}] - Conteúdo será extraído automaticamente`;
+      } else if (cvInputType === "text" && cvText.trim()) {
+        cvContent = cvText.trim();
+      }
+
+      // Prepare job description
+      let jobDescription = '';
+      if (jobInputType === "url" && jobUrl.trim()) {
+        jobDescription = `[URL da vaga: ${jobUrl.trim()}] - Conteúdo será extraído automaticamente`;
+      } else if (jobInputType === "text" && jobText.trim()) {
+        jobDescription = jobText.trim();
+      }
+
+      // Validate minimum content length
+      if (cvContent.length < 50) {
+        toast({
+          title: "Conteúdo insuficiente",
+          description: "O CV deve ter pelo menos 50 caracteres para análise.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (jobDescription.length < 50) {
+        toast({
+          title: "Conteúdo insuficiente", 
+          description: "A descrição da vaga deve ter pelo menos 50 caracteres para análise.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Call API
+      const response = await fetch('https://hytkdtgndmljgxwuutyu.supabase.co/functions/v1/diagnostico', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          cv_content: cvContent,
+          job_description: jobDescription,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro na análise');
+      }
+
+      const result = await response.json();
+      
       toast({
         title: "Análise concluída!",
-        description: "Sua pontuação ATS foi calculada.",
+        description: "Seu CV foi analisado com sucesso. Redirecionando...",
       });
-      // Here would redirect to results page
+      
+      // Redirect to results page
+      window.location.href = `/resultado/${result.id}`;
+      
     } catch (error) {
+      console.error('Erro na análise:', error);
       toast({
         title: "Erro na análise",
-        description: "Tente novamente em alguns minutos.",
-        variant: "destructive"
+        description: error instanceof Error ? error.message : "Ocorreu um erro durante a análise. Tente novamente.",
+        variant: "destructive",
       });
     } finally {
       setIsAnalyzing(false);
