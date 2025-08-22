@@ -18,5 +18,8 @@ verify_jwt = false
 [functions.extract-cv]
 verify_jwt = false
 
+[functions.relatorio-pdf]
+verify_jwt = false
+
 [functions.score-ats]
 verify_jwt = false
