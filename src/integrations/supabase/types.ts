@@ -78,6 +78,7 @@ export type Database = {
           email: string
           id: string
           job_description: string | null
+          json_result_rich: Json | null
           nota_ats: number | null
           pago: boolean | null
           resultado_completo: Json | null
@@ -91,6 +92,7 @@ export type Database = {
           email: string
           id?: string
           job_description?: string | null
+          json_result_rich?: Json | null
           nota_ats?: number | null
           pago?: boolean | null
           resultado_completo?: Json | null
@@ -104,6 +106,7 @@ export type Database = {
           email?: string
           id?: string
           job_description?: string | null
+          json_result_rich?: Json | null
           nota_ats?: number | null
           pago?: boolean | null
           resultado_completo?: Json | null
