@@ -6,8 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadArea } from "./UploadArea";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { ResultadoAnalise } from "./ResultadoAnalise";
+import type { AnaliseResult } from "@/lib/aiSchema";
 
 export function DiagnosticForm() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -18,6 +21,7 @@ export function DiagnosticForm() {
   const [jobText, setJobText] = useState("");
   const [cvInputType, setCvInputType] = useState<"upload" | "text">("upload");
   const [jobInputType, setJobInputType] = useState<"url" | "text">("url");
+  const [resultado, setResultado] = useState<AnaliseResult | null>(null);
   const { toast } = useToast();
 
   const handleAnalyze = async () => {
@@ -30,6 +34,8 @@ export function DiagnosticForm() {
       return;
     }
 
+    // Prepare CV content
+    let cvContent = '';
     if (cvInputType === "upload" && !cvFile) {
       toast({
         title: "CV obrigatório",
@@ -48,6 +54,14 @@ export function DiagnosticForm() {
       return;
     }
 
+    if (cvInputType === "upload" && cvFile) {
+      cvContent = `[Arquivo enviado: ${cvFile.name}] - Conteúdo será extraído automaticamente`;
+    } else if (cvInputType === "text" && cvText.trim()) {
+      cvContent = cvText.trim();
+    }
+
+    // Prepare job description
+    let vagaTexto = '';
     if (jobInputType === "url" && !jobUrl.trim()) {
       toast({
         title: "Vaga obrigatória",
@@ -66,81 +80,102 @@ export function DiagnosticForm() {
       return;
     }
 
+    if (jobInputType === "url" && jobUrl.trim()) {
+      vagaTexto = `[URL da vaga: ${jobUrl.trim()}] - Conteúdo será extraído automaticamente`;
+    } else if (jobInputType === "text" && jobText.trim()) {
+      vagaTexto = jobText.trim();
+    }
+
+    if (!vagaTexto.trim() || !cvContent.trim()) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha a vaga e o currículo para continuar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (vagaTexto.length < 50 || cvContent.length < 50) {
+      toast({
+        title: "Conteúdo insuficiente",
+        description: "Vaga e currículo devem ter pelo menos 50 caracteres",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsAnalyzing(true);
-    
     try {
-      // Prepare CV content
-      let cvContent = '';
-      if (cvInputType === "upload" && cvFile) {
-        cvContent = `[Arquivo enviado: ${cvFile.name}] - Conteúdo será extraído automaticamente`;
-      } else if (cvInputType === "text" && cvText.trim()) {
-        cvContent = cvText.trim();
-      }
+      console.log("🚀 Iniciando análise ATS...");
 
-      // Prepare job description
-      let jobDescription = '';
-      if (jobInputType === "url" && jobUrl.trim()) {
-        jobDescription = `[URL da vaga: ${jobUrl.trim()}] - Conteúdo será extraído automaticamente`;
-      } else if (jobInputType === "text" && jobText.trim()) {
-        jobDescription = jobText.trim();
-      }
-
-      // Validate minimum content length
-      if (cvContent.length < 50) {
-        toast({
-          title: "Conteúdo insuficiente",
-          description: "O CV deve ter pelo menos 50 caracteres para análise.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (jobDescription.length < 50) {
-        toast({
-          title: "Conteúdo insuficiente", 
-          description: "A descrição da vaga deve ter pelo menos 50 caracteres para análise.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Call API
-      const response = await fetch('https://hytkdtgndmljgxwuutyu.supabase.co/functions/v1/diagnostico', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          cv_content: cvContent,
-          job_description: jobDescription,
-        }),
+      // Passo 1: Extrair estrutura do CV
+      toast({
+        title: "Extraindo dados do CV",
+        description: "Analisando a estrutura do seu currículo...",
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro na análise');
+      const { data: extractData, error: extractError } = await supabase.functions.invoke('extract-cv', {
+        body: { curriculo_texto: cvContent }
+      });
+
+      if (extractError) {
+        throw new Error(extractError.message);
       }
 
-      const result = await response.json();
-      
+      console.log("✅ CV extraído:", extractData.cv_struct);
+
+      // Passo 2: Análise ATS completa
+      toast({
+        title: "Analisando compatibilidade ATS",
+        description: "Comparando seu CV com a vaga...",
+      });
+
+      const { data: scoreData, error: scoreError } = await supabase.functions.invoke('score-ats', {
+        body: { 
+          vaga_texto: vagaTexto,
+          cv_struct: extractData.cv_struct
+        }
+      });
+
+      if (scoreError) {
+        throw new Error(scoreError.message);
+      }
+
+      console.log("✅ Análise concluída:", scoreData);
+
+      const analiseResult: AnaliseResult = {
+        cv_struct: extractData.cv_struct,
+        ats_json: scoreData.ats_json,
+        ats_report_md: scoreData.ats_report_md
+      };
+
+      setResultado(analiseResult);
+
       toast({
         title: "Análise concluída!",
-        description: "Seu CV foi analisado com sucesso. Redirecionando...",
+        description: `Sua pontuação ATS: ${scoreData.ats_json.overall_score}/100`,
       });
-      
-      // Redirect to results page
-      window.location.href = `/resultado/${result.id}`;
-      
-    } catch (error) {
-      console.error('Erro na análise:', error);
+
+    } catch (error: any) {
+      console.error("❌ Erro na análise:", error);
       toast({
         title: "Erro na análise",
-        description: error instanceof Error ? error.message : "Ocorreu um erro durante a análise. Tente novamente.",
+        description: error.message || "Tente novamente em alguns momentos",
         variant: "destructive",
       });
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const copiarFrasesProntas = () => {
+    if (resultado?.ats_json.ready_to_paste_bullets) {
+      const frases = resultado.ats_json.ready_to_paste_bullets.join('\n');
+      navigator.clipboard.writeText(frases);
+      toast({
+        title: "Copiado!",
+        description: "Frases prontas copiadas para a área de transferência",
+      });
     }
   };
 
@@ -259,6 +294,23 @@ export function DiagnosticForm() {
           Análise gratuita inclui pontuação geral e principais alertas. 
           Para relatório completo com dicas personalizadas, você pode adquirir o diagnóstico premium.
         </p>
+
+        {resultado && (
+          <div className="space-y-6 mt-8">
+            <div className="flex justify-center">
+              <Button
+                onClick={copiarFrasesProntas}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                Copiar Frases Prontas
+              </Button>
+            </div>
+            
+            <ResultadoAnalise resultado={resultado} />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
