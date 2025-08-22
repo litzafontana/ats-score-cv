@@ -113,3 +113,41 @@ export type Experience = z.infer<typeof ExperienceSchema>;
 export type ATSResult = z.infer<typeof ATSResultSchema>;
 export type TopAction = z.infer<typeof TopActionSchema>;
 export type AnaliseResult = z.infer<typeof AnaliseResultSchema>;
+
+// Novo schema rico para análise detalhada
+export const CategoriaSchema = z.object({
+  pontuacao_local: z.number().int(),
+  evidencias: z.array(z.string()).default([]),
+  faltantes: z.array(z.string()).optional(),
+  presentes: z.array(z.string()).optional(),
+  ausentes: z.array(z.string()).optional(),
+  riscos: z.array(z.string()).optional(),
+  tem_metricas: z.boolean().optional()
+});
+
+export const ATSRichSchema = z.object({
+  nota_final: z.number().int().min(0).max(100),
+  alertas: z.array(z.string()).min(1).max(4),
+  categorias: z.object({
+    experiencia_alinhada: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(30) }),
+    competencias_tecnicas: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(25) }),
+    palavras_chave: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(15) }),
+    resultados_impacto: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(10) }),
+    formacao_certificacoes: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(10) }),
+    formatacao_ats: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(10) })
+  }),
+  acoes_prioritarias: z.array(z.object({
+    titulo: z.string(),
+    como_fazer: z.string(),
+    ganho_estimado_pontos: z.number().int().min(0).max(30)
+  })).min(3).max(6),
+  frases_prontas: z.array(z.string()).min(1).max(10),
+  perfil_detectado: z.object({
+    cargos: z.array(z.string()).default([]),
+    ferramentas: z.array(z.string()).default([]),
+    dominios: z.array(z.string()).default([])
+  })
+});
+
+export type ATSRich = z.infer<typeof ATSRichSchema>;
+export type Categoria = z.infer<typeof CategoriaSchema>;

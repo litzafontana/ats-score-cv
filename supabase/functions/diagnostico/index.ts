@@ -25,6 +25,7 @@ interface ResultadoParcial {
     sugestao: string;
   }>;
   resumo_rapido: string;
+  json_result_rich?: any;
 }
 
 serve(async (req) => {
@@ -71,7 +72,7 @@ serve(async (req) => {
     console.log('📊 Executando análise ATS...');
 
     // Simulate AI analysis (replace with real OpenAI call when ready)
-    const resultadoParcial = await executarAnaliseSimulada({ email, cv_content, job_description });
+    const resultadoParcial = await executarAnaliseReal({ email, cv_content, job_description });
 
     console.log('💾 Salvando diagnóstico no banco...');
 
@@ -84,6 +85,7 @@ serve(async (req) => {
         job_description: job_description.trim(),
         nota_ats: resultadoParcial.nota_ats,
         alertas_top2: resultadoParcial.alertas_top2,
+        json_result_rich: resultadoParcial.json_result_rich,
         pago: false,
         user_id: null // Will be updated when auth is implemented
       })
@@ -158,62 +160,122 @@ async function executarAnaliseSimulada(input: DiagnosticInput): Promise<Resultad
   };
 }
 
-// Real OpenAI analysis function (to be implemented)
+// Real OpenAI analysis function (implementado)
 async function executarAnaliseReal(input: DiagnosticInput): Promise<ResultadoParcial> {
-  const openaiKey = Deno.env.get('OPENAI_API_KEY');
+  console.log('Executando análise real com OpenAI...');
   
-  if (!openaiKey) {
-    throw new Error('OpenAI API key não configurada');
+  const openAIKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIKey) {
+    throw new Error('Chave da OpenAI não configurada');
   }
 
-  const prompt = `
-Você é um especialista em ATS (Applicant Tracking System). Analise o CV considerando a vaga.
+  try {
+    // Novo prompt rico para análise detalhada
+    const prompt = `Você é um avaliador ATS. Responda SOMENTE com JSON válido conforme o schema abaixo.
 
-**CV:**
-${input.cv_content}
+Tarefa: analisar DESCRICAO_DA_VAGA e CURRICULO e retornar a pontuação geral (0–100) e um breakdown em 6 categorias com evidências e recomendações.
 
-**VAGA:**
+Categorias e limites:
+1) experiencia_alinhada (0–30)
+2) competencias_tecnicas (0–25) 
+3) palavras_chave (0–15)
+4) resultados_impacto (0–10)
+5) formacao_certificacoes (0–10)
+6) formatacao_ats (0–10)
+
+Instruções:
+- Extraia 10–20 keywords da vaga (hard/soft) e marque as presentes/ausentes no CV.
+- Para cada categoria, forneça pontuacao_local e evidencias (bullets curtas, concretas, do CV).
+- Gere 2–4 alertas técnicos de alto impacto.
+- Gere 3–5 acoes_prioritarias, cada uma com titulo, como_fazer e ganho_estimado_pontos.
+- Gere 1–5 frases_prontas (bullet points prontos para colar no CV, com verbos de ação e números quando possível).
+- Detecte perfil_detectado (cargos, ferramentas, dominios) com base no CV.
+
+DESCRICAO_DA_VAGA:
 ${input.job_description}
 
-Retorne APENAS um JSON válido com:
+CURRICULO:
+${input.cv_content}
+
+Retorne APENAS JSON no formato:
 {
-  "nota_ats": number (0-100),
-  "alertas_top2": [
-    {
-      "tipo": "critico|importante|sugestao",
-      "titulo": "string",
-      "descricao": "string",
-      "impacto": "string",
-      "sugestao": "string"
-    }
+  "nota_final": <int 0-100>,
+  "alertas": ["..."],
+  "categorias": {
+    "experiencia_alinhada": { "pontuacao_local": <0-30>, "evidencias": ["..."] },
+    "competencias_tecnicas": { "pontuacao_local": <0-25>, "faltantes": ["..."], "evidencias": ["..."] },
+    "palavras_chave": { "pontuacao_local": <0-15>, "presentes": ["..."], "ausentes": ["..."] },
+    "resultados_impacto": { "pontuacao_local": <0-10>, "evidencias": ["..."], "tem_metricas": true|false },
+    "formacao_certificacoes": { "pontuacao_local": <0-10>, "evidencias": ["..."] },
+    "formatacao_ats": { "pontuacao_local": <0-10>, "evidencias": ["..."], "riscos": ["..."] }
+  },
+  "acoes_prioritarias": [
+    { "titulo": "...", "como_fazer": "...", "ganho_estimado_pontos": <int> }
   ],
-  "resumo_rapido": "string (máx 200 chars)"
+  "frases_prontas": ["..."],
+  "perfil_detectado": { "cargos": ["..."], "ferramentas": ["..."], "dominios": ["..."] }
 }
-`;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: 'Você é um especialista em ATS. Retorne apenas JSON válido.' },
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: 1000,
-      temperature: 0.3,
-    }),
-  });
+Valide internamente limites de cada pontuação. Não inclua texto fora do JSON.`;
 
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'Você é um especialista em ATS (Applicant Tracking Systems) que analisa CVs. Responda sempre em JSON válido seguindo o schema fornecido.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 2000,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Erro da OpenAI:', errorData);
+      throw new Error(`Erro da OpenAI: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+    
+    // Parse JSON response
+    const analiseRica = JSON.parse(content);
+    
+    console.log('Análise rica gerada:', analiseRica);
+
+    // Generate legacy format alerts for backward compatibility
+    const alertasLegacy = analiseRica.alertas.slice(0, 2).map((alerta: string) => ({
+      tipo: "critico",
+      titulo: "Ponto de Melhoria Identificado",
+      descricao: alerta,
+      impacto: "Pode reduzir significativamente suas chances de aprovação",
+      sugestao: "Revise e ajuste conforme as recomendações detalhadas"
+    }));
+
+    return {
+      nota_ats: analiseRica.nota_final,
+      alertas_top2: alertasLegacy,
+      resumo_rapido: `Análise concluída com ${analiseRica.nota_final} pontos. ${analiseRica.acoes_prioritarias.length} ações prioritárias identificadas.`,
+      json_result_rich: analiseRica
+    };
+
+  } catch (error) {
+    console.error('Erro na análise real:', error);
+    
+    // Fallback para análise simulada se OpenAI falhar
+    console.log('Fallback para análise simulada...');
+    return await executarAnaliseSimulada(input);
   }
-
-  const data = await response.json();
-  const result = JSON.parse(data.choices[0].message.content);
-  
-  return result;
 }

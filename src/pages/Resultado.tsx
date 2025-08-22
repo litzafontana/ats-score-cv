@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScoreProgress } from "@/components/ScoreProgress";
+import { ResultadoRobustoAnalise } from "@/components/ResultadoRobustoAnalise";
 import { toast } from "@/components/ui/use-toast";
 import { AlertTriangle, CheckCircle, Clock, Crown, Lock } from "lucide-react";
+import type { ATSRich } from "@/lib/aiSchema";
 
 interface Alerta {
   tipo: "critico" | "importante" | "sugestao";
@@ -23,6 +25,7 @@ interface DiagnosticoResult {
   alertas_top2?: Alerta[];
   resumo_rapido?: string;
   resultado_completo?: any;
+  json_result_rich?: ATSRich;
   created_at: string;
   pago: boolean;
   upgrade_available?: boolean;
@@ -316,10 +319,19 @@ export default function Resultado() {
         )}
 
         {/* Full Result Section (if paid) */}
-        {diagnostico.pago && diagnostico.resultado_completo && (
+        {diagnostico.pago && diagnostico.json_result_rich && (
+          <ResultadoRobustoAnalise 
+            resultado={diagnostico.json_result_rich}
+            diagnosticoId={diagnostico.id}
+            isPaid={diagnostico.pago}
+          />
+        )}
+
+        {/* Fallback para resultado antigo */}
+        {diagnostico.pago && !diagnostico.json_result_rich && diagnostico.resultado_completo && (
           <Card>
             <CardHeader>
-              <CardTitle>Análise Completa</CardTitle>
+              <CardTitle>Análise Completa (Formato Legado)</CardTitle>
               <CardDescription>
                 Relatório detalhado com todas as recomendações
               </CardDescription>
