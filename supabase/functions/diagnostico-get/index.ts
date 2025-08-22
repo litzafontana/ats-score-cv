@@ -24,9 +24,9 @@ serve(async (req) => {
   try {
     console.log('🔍 Buscando diagnóstico...');
 
-    // Get diagnostic ID from URL
+    // Get diagnostic ID from URL query parameter
     const url = new URL(req.url);
-    const id = url.pathname.split('/').pop();
+    const id = url.searchParams.get('id');
     
     if (!id) {
       return new Response(
