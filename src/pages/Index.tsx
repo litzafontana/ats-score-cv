@@ -5,7 +5,8 @@ import FAQSection from "@/components/FAQSection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Target, Zap, Shield, ArrowRight } from "lucide-react";
+import { CheckCircle, Target, Zap, Shield, ArrowRight, Brain } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Index = () => {
   return (
@@ -64,6 +65,16 @@ const Index = () => {
               Analisar meu CV grátis
               <ArrowRight className="h-5 w-5" />
             </Button>
+            <Link to="/analisador">
+              <Button 
+                variant="outline" 
+                size="lg" 
+                className="shadow-lg bg-white/80 backdrop-blur border-primary/20 hover:bg-primary/5"
+              >
+                <Brain className="h-5 w-5 mr-2" />
+                Análise Avançada
+              </Button>
+            </Link>
             <ExampleAnalysisModal />
           </div>
 

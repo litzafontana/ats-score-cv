@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.checkout]
 verify_jwt = false
+
+[functions.extract-cv]
+verify_jwt = false
+
+[functions.score-ats]
+verify_jwt = false
