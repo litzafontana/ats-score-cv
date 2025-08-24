@@ -157,12 +157,13 @@ Inferir:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5-2025-08-07',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user }
         ],
-        max_completion_tokens: 2000,
+        max_tokens: 2000,
+        temperature: 0.7,
       }),
     });
 
