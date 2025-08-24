@@ -8,10 +8,10 @@ const corsHeaders = {
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
-// Função para separar JSON do Markdown
-function splitJsonAndMarkdown(raw: string): { json: any; markdown: string } {
+// Função para extrair apenas JSON da resposta
+function extractJsonFromResponse(raw: string): any {
   const start = raw.indexOf("{");
-  if (start === -1) throw new Error("JSON não encontrado no início da resposta.");
+  if (start === -1) throw new Error("JSON não encontrado na resposta.");
   
   let depth = 0;
   let end = -1;
@@ -29,15 +29,11 @@ function splitJsonAndMarkdown(raw: string): { json: any; markdown: string } {
   if (end === -1) throw new Error("JSON aparentemente incompleto.");
   
   const jsonStr = raw.slice(start, end + 1);
-  let parsed;
   try {
-    parsed = JSON.parse(jsonStr);
+    return JSON.parse(jsonStr);
   } catch (e) {
     throw new Error("Falha ao parsear JSON: " + (e as Error).message);
   }
-  
-  const markdown = raw.slice(end + 1).trim();
-  return { json: parsed, markdown };
 }
 
 serve(async (req) => {
@@ -59,58 +55,81 @@ serve(async (req) => {
       );
     }
 
-    const system = `Você é um analista de recrutamento especializado em ATS. Compare o OBJETO_CV com a VAGA e produza:
-1) um JSON seguindo EXATAMENTE o schema indicado; 
-2) um RELATÓRIO em Markdown (após o JSON), usando as seções obrigatórias.
+    const system = `Você é um avaliador ATS especialista em triagem de currículos. Receberá:
+1) DESCRICAO_DA_VAGA (texto completo ou link)
+2) CURRICULO (estrutura JSON extraída)
 
-REGRAS GERAIS
-- Cada item marcado como "presente" deve vir com EVIDÊNCIA literal (trecho do CV entre aspas). Se não houver, marque como "ausente" e proponha frase pronta.
-- Use o RUBRIC e explique o porquê das notas.
-- Recomendações devem ser acionáveis, com verbos e números (quanto/como/onde).
-- Nada de conselhos vagos ("melhore…", "seja…"). Seja específico.
+### Objetivo
+Analisar a vaga e o currículo e retornar APENAS JSON válido no exato schema abaixo, com nota final (0–100) e breakdown em 6 categorias. Não escreva nada fora do JSON.
 
-RUBRIC (0–100):
-- Experiência alinhada (30)
-- Competências técnicas/ferramentas (25)
-- Palavras-chave da vaga (15)
-- Resultados/impacto quantificável (10)
-- Formação/Certificações (10)
-- Formatação amigável ao ATS (5)
-- Riscos/Lacunas (5)
+### Entrada da Vaga (DESCRICAO_DA_VAGA)
+- Se for texto: use diretamente o conteúdo.
+- Se for link: acesse a página e extraia somente as informações úteis: responsabilidades, atribuições, requisitos, competências, diferenciais, formação e certificações.
+- Caso o link esteja indisponível ou não contenha informações relevantes, retorne "descricao_vaga_invalida": true no JSON, sem quebrar o schema.
 
-SCHEMA JSON (saída #1):
+### Mapeamento e Evidências
+- Compare vaga vs CV em experiências, competências, palavras-chave, resultados, formação e formatação.
+- Evidencias: sempre do CV, em bullets curtas e objetivas, citando onde foi encontrado (ex.: "TÜV Rheinland — Eng. Civil Pleno (mai/2024–abr/2025): definiu estratégia de manutenção PNR-47/48").
+- Se faltar informação → listas vazias + pontuação proporcionalmente reduzida.
+
+### Palavras-chave
+- Extraia 10–20 keywords da vaga (hard/soft skills).
+- Marque presentes (CV contém) e ausentes (CV não contém).
+- Considere sinônimos/lemmas (ex.: "Python" ~ "pandas", "manutenção preditiva" ~ "predictive maintenance").
+- Ignore duplicatas.
+
+### Escore e Limites
+Categorias obrigatórias e pesos:
+1. experiencia_alinhada (0–30)
+2. competencias_tecnicas (0–25)
+3. palavras_chave (0–15)
+4. resultados_impacto (0–10)
+5. formacao_certificacoes (0–10)
+6. formatacao_ats (0–10)
+
+Regras:
+- pontuacao_local deve respeitar o teto de cada categoria.
+- nota_final = soma das seis categorias (0–100).
+- Apenas inteiros.
+- Seção sem dados = pontuação 0.
+
+### Alertas e Ações
+- Gerar 2–4 alertas técnicos de alto impacto (ex.: "Falta palavra-chave obrigatória", "Datas inconsistentes").
+- Gerar 3–5 acoes_prioritarias com { "titulo", "como_fazer", "ganho_estimado_pontos" }.
+- Gerar 1–5 frases_prontas (bullets prontos para colar no CV, sempre com verbo de ação + números quando possível).
+
+### Perfil Detectado
+Inferir:
+- "cargos" (ex.: Engenheira de Manutenção, Coordenadora de Projetos)
+- "ferramentas" (ex.: AutoCAD, Power BI, Python)
+- "dominios" (ex.: Siderurgia, Mineração, Telecom)
+
+### Validações finais obrigatórias
+- A soma das pontuações = nota_final.
+- Todas dentro dos limites.
+- Arrays sem duplicatas.
+- JSON bem-formado.
+- Nada fora do JSON.
+
+### Saída esperada — APENAS JSON:
 {
-  "overall_score": 0,
-  "breakdown": {
-    "experience_alignment": {"score": 0, "evidence": [""]},
-    "tech_skills_tools": {"score": 0, "matched": [""] , "missing": [""]},
-    "keywords": {"score": 0, "present": [""], "absent": [""]},
-    "impact_results": {"score": 0, "evidence": [""]},
-    "education_certs": {"score": 0, "evidence": [""]},
-    "ats_formatting": {"score": 0, "issues": [""]},
-    "risks_gaps": {"score": 0, "items": [""]}
+  "nota_final": <int 0-100>,
+  "descricao_vaga_invalida": false,
+  "alertas": ["..."],
+  "categorias": {
+    "experiencia_alinhada": { "pontuacao_local": <0-30>, "evidencias": ["..."] },
+    "competencias_tecnicas": { "pontuacao_local": <0-25>, "faltantes": ["..."], "evidencias": ["..."] },
+    "palavras_chave": { "pontuacao_local": <0-15>, "presentes": ["..."], "ausentes": ["..."] },
+    "resultados_impacto": { "pontuacao_local": <0-10>, "evidencias": ["..."], "tem_metricas": true },
+    "formacao_certificacoes": { "pontuacao_local": <0-10>, "evidencias": ["..."] },
+    "formatacao_ats": { "pontuacao_local": <0-10>, "evidencias": ["..."], "riscos": ["..."] }
   },
-  "top_actions": [
-    {"title": "", "why": "", "how_example": "", "est_impact_points": 0}
+  "acoes_prioritarias": [
+    { "titulo": "...", "como_fazer": "...", "ganho_estimado_pontos": <int> }
   ],
-  "ready_to_paste_bullets": [
-    "Ex.: • Aumentei a taxa de conversão em 23% ao redesenhar o fluxo de checkout (Figma, GA4, testes A/B)."
-  ],
-  "detected_entities": {
-    "roles": ["UX Designer"],
-    "tools": ["Figma","Jira","GA4"],
-    "domains": ["OTT","Telecom"]
-  },
-  "errors": []
-}
-
-RELATÓRIO MARKDOWN (saída #2, após o JSON):
-- Título: "Resultado da Análise ATS"
-- Seções: Pontuação Geral; 1) Experiência Alinhada; 2) Competências Técnicas; 3) Palavras-chave; 4) Resultados/Impacto; 5) Formação/Certificações; 6) Formatação ATS; 7) Riscos/Lacunas; Ações Prioritárias (com ganho estimado); Frases prontas para colar.
-- Em cada seção, referenciar evidências com trechos do CV entre aspas.
-- Se a VAGA estiver vazia, retornar JSON com {"errors":["vaga_nao_fornecida"]} e não gerar relatório.
-
-A PRIMEIRA parte da sua resposta DEVE ser um JSON válido seguindo o schema. Somente DEPOIS venha o relatório em Markdown.`;
+  "frases_prontas": ["..."],
+  "perfil_detectado": { "cargos": ["..."], "ferramentas": ["..."], "dominios": ["..."] }
+}`;
 
     const user = `[VAGA]\n${vaga_texto}\n\n[OBJETO_CV] (JSON da etapa de extração)\n${JSON.stringify(cv_struct)}`;
 
@@ -123,14 +142,12 @@ A PRIMEIRA parte da sua resposta DEVE ser um JSON válido seguindo o schema. Som
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5-2025-08-07',
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user }
         ],
-        temperature: 0.1,
-        max_tokens: 1800,
-        top_p: 0.9,
+        max_completion_tokens: 2000,
       }),
     });
 
@@ -151,12 +168,21 @@ A PRIMEIRA parte da sua resposta DEVE ser um JSON válido seguindo o schema. Som
     const rawResponse = data.choices[0].message.content;
     
     try {
-      const { json: ats_json, markdown: ats_report_md } = splitJsonAndMarkdown(rawResponse);
+      const ats_json = extractJsonFromResponse(rawResponse);
+      
+      // Validar que a soma das pontuações = nota_final
+      if (ats_json.categorias) {
+        const somaCalculada = Object.values(ats_json.categorias).reduce((sum: number, cat: any) => sum + (cat.pontuacao_local || 0), 0);
+        if (somaCalculada !== ats_json.nota_final) {
+          console.warn(`⚠️ Soma das categorias (${somaCalculada}) ≠ nota_final (${ats_json.nota_final}). Corrigindo...`);
+          ats_json.nota_final = somaCalculada;
+        }
+      }
       
       return new Response(
         JSON.stringify({ 
           ats_json,
-          ats_report_md,
+          ats_report_md: "", // Não geramos mais markdown separado
           cv_struct
         }),
         {

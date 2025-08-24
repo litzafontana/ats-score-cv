@@ -127,12 +127,20 @@ export const CategoriaSchema = z.object({
 
 export const ATSRichSchema = z.object({
   nota_final: z.number().int().min(0).max(100),
-  alertas: z.array(z.string()).min(1).max(4),
+  descricao_vaga_invalida: z.boolean().optional().default(false),
+  alertas: z.array(z.string()).min(2).max(4),
   categorias: z.object({
     experiencia_alinhada: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(30) }),
     competencias_tecnicas: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(25) }),
-    palavras_chave: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(15) }),
-    resultados_impacto: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(10) }),
+    palavras_chave: CategoriaSchema.extend({ 
+      pontuacao_local: z.number().int().min(0).max(15),
+      presentes: z.array(z.string()).optional(),
+      ausentes: z.array(z.string()).optional()
+    }),
+    resultados_impacto: CategoriaSchema.extend({ 
+      pontuacao_local: z.number().int().min(0).max(10),
+      tem_metricas: z.boolean().optional()
+    }),
     formacao_certificacoes: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(10) }),
     formatacao_ats: CategoriaSchema.extend({ pontuacao_local: z.number().int().min(0).max(10) })
   }),
@@ -140,8 +148,8 @@ export const ATSRichSchema = z.object({
     titulo: z.string(),
     como_fazer: z.string(),
     ganho_estimado_pontos: z.number().int().min(0).max(30)
-  })).min(3).max(6),
-  frases_prontas: z.array(z.string()).min(1).max(10),
+  })).min(3).max(5),
+  frases_prontas: z.array(z.string()).min(1).max(5),
   perfil_detectado: z.object({
     cargos: z.array(z.string()).default([]),
     ferramentas: z.array(z.string()).default([]),

@@ -146,7 +146,7 @@ export function DiagnosticForm() {
       const analiseResult: AnaliseResult = {
         cv_struct: extractData.cv_struct,
         ats_json: scoreData.ats_json,
-        ats_report_md: scoreData.ats_report_md
+        ats_report_md: scoreData.ats_report_md || ""
       };
 
       setResultado(analiseResult);
