@@ -99,21 +99,6 @@ export const ATSResultSchema = z.object({
   errors: z.array(z.string()),
 });
 
-export const AnaliseResultSchema = z.object({
-  cv_struct: CVStructSchema,
-  ats_json: ATSResultSchema,
-  ats_report_md: z.string(),
-});
-
-// Types
-export type AnaliseInput = z.infer<typeof AnaliseInputSchema>;
-export type CVStruct = z.infer<typeof CVStructSchema>;
-export type Candidate = z.infer<typeof CandidateSchema>;
-export type Experience = z.infer<typeof ExperienceSchema>;
-export type ATSResult = z.infer<typeof ATSResultSchema>;
-export type TopAction = z.infer<typeof TopActionSchema>;
-export type AnaliseResult = z.infer<typeof AnaliseResultSchema>;
-
 // Novo schema rico para análise detalhada
 export const CategoriaSchema = z.object({
   pontuacao_local: z.number().int(),
@@ -157,5 +142,19 @@ export const ATSRichSchema = z.object({
   })
 });
 
+export const AnaliseResultSchema = z.object({
+  cv_struct: CVStructSchema,
+  ats_json: ATSRichSchema,
+  ats_report_md: z.string().optional(),
+});
+
+// Types
+export type AnaliseInput = z.infer<typeof AnaliseInputSchema>;
+export type CVStruct = z.infer<typeof CVStructSchema>;
+export type Candidate = z.infer<typeof CandidateSchema>;
+export type Experience = z.infer<typeof ExperienceSchema>;
+export type ATSResult = z.infer<typeof ATSResultSchema>;
+export type TopAction = z.infer<typeof TopActionSchema>;
+export type AnaliseResult = z.infer<typeof AnaliseResultSchema>;
 export type ATSRich = z.infer<typeof ATSRichSchema>;
 export type Categoria = z.infer<typeof CategoriaSchema>;

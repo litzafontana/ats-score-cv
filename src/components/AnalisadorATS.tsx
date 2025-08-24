@@ -84,7 +84,7 @@ export function AnalisadorATS() {
 
       toast({
         title: "Análise concluída!",
-        description: `Sua pontuação ATS: ${scoreData.ats_json.overall_score}/100`,
+        description: `Sua pontuação ATS: ${scoreData.ats_json.nota_final}/100`,
       });
 
     } catch (error: any) {
@@ -100,8 +100,8 @@ export function AnalisadorATS() {
   };
 
   const copiarFrasesProntas = () => {
-    if (resultado?.ats_json.ready_to_paste_bullets) {
-      const frases = resultado.ats_json.ready_to_paste_bullets.join('\n');
+    if (resultado?.ats_json.frases_prontas) {
+      const frases = resultado.ats_json.frases_prontas.join('\n');
       navigator.clipboard.writeText(frases);
       toast({
         title: "Copiado!",

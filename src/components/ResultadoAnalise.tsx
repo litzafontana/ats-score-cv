@@ -40,11 +40,11 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
           <CardTitle className="text-2xl">Pontuação ATS</CardTitle>
         </CardHeader>
         <CardContent className="text-center">
-          <div className={`text-6xl font-bold mb-4 ${getScoreColor(ats_json.overall_score)}`}>
-            {ats_json.overall_score}
+          <div className={`text-6xl font-bold mb-4 ${getScoreColor(ats_json.nota_final)}`}>
+            {ats_json.nota_final}
             <span className="text-2xl text-muted-foreground">/100</span>
           </div>
-          <Progress value={ats_json.overall_score} className="w-full max-w-md mx-auto" />
+          <Progress value={ats_json.nota_final} className="w-full max-w-md mx-auto" />
         </CardContent>
       </Card>
 
@@ -60,16 +60,16 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
           <CardContent>
             <div className="flex items-center justify-between mb-2">
               <span>Pontuação</span>
-              <Badge variant={getScoreVariant(ats_json.breakdown.experience_alignment.score)}>
-                {ats_json.breakdown.experience_alignment.score}/30
+              <Badge variant={getScoreVariant(ats_json.categorias.experiencia_alinhada.pontuacao_local)}>
+                {ats_json.categorias.experiencia_alinhada.pontuacao_local}/30
               </Badge>
             </div>
-            <Progress value={(ats_json.breakdown.experience_alignment.score / 30) * 100} />
-            {ats_json.breakdown.experience_alignment.evidence.length > 0 && (
+            <Progress value={(ats_json.categorias.experiencia_alinhada.pontuacao_local / 30) * 100} />
+            {ats_json.categorias.experiencia_alinhada.evidencias.length > 0 && (
               <div className="mt-2 text-sm text-muted-foreground">
                 <strong>Evidências:</strong>
                 <ul className="list-disc list-inside mt-1">
-                  {ats_json.breakdown.experience_alignment.evidence.map((evidence, idx) => (
+                  {ats_json.categorias.experiencia_alinhada.evidencias.map((evidence, idx) => (
                     <li key={idx}>{evidence}</li>
                   ))}
                 </ul>
@@ -88,36 +88,36 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
           <CardContent>
             <div className="flex items-center justify-between mb-2">
               <span>Pontuação</span>
-              <Badge variant={getScoreVariant(ats_json.breakdown.tech_skills_tools.score)}>
-                {ats_json.breakdown.tech_skills_tools.score}/25
+              <Badge variant={getScoreVariant(ats_json.categorias.competencias_tecnicas.pontuacao_local)}>
+                {ats_json.categorias.competencias_tecnicas.pontuacao_local}/25
               </Badge>
             </div>
-            <Progress value={(ats_json.breakdown.tech_skills_tools.score / 25) * 100} />
+            <Progress value={(ats_json.categorias.competencias_tecnicas.pontuacao_local / 25) * 100} />
             
-            {ats_json.breakdown.tech_skills_tools.matched.length > 0 && (
+            {ats_json.categorias.competencias_tecnicas.evidencias.length > 0 && (
               <div className="mt-2">
                 <p className="text-sm font-medium text-green-600 flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4" />
-                  Encontradas ({ats_json.breakdown.tech_skills_tools.matched.length})
+                  Evidências ({ats_json.categorias.competencias_tecnicas.evidencias.length})
                 </p>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {ats_json.breakdown.tech_skills_tools.matched.map((skill, idx) => (
-                    <Badge key={idx} variant="outline" className="text-xs">
-                      {skill}
-                    </Badge>
-                  ))}
+                <div className="mt-1 text-sm text-muted-foreground">
+                  <ul className="list-disc list-inside">
+                    {ats_json.categorias.competencias_tecnicas.evidencias.map((evidence, idx) => (
+                      <li key={idx}>{evidence}</li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             )}
             
-            {ats_json.breakdown.tech_skills_tools.missing.length > 0 && (
+            {ats_json.categorias.competencias_tecnicas.faltantes?.length > 0 && (
               <div className="mt-2">
                 <p className="text-sm font-medium text-red-600 flex items-center gap-1">
                   <XCircle className="h-4 w-4" />
-                  Ausentes ({ats_json.breakdown.tech_skills_tools.missing.length})
+                  Faltantes ({ats_json.categorias.competencias_tecnicas.faltantes.length})
                 </p>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {ats_json.breakdown.tech_skills_tools.missing.map((skill, idx) => (
+                  {ats_json.categorias.competencias_tecnicas.faltantes.map((skill, idx) => (
                     <Badge key={idx} variant="destructive" className="text-xs">
                       {skill}
                     </Badge>
@@ -138,24 +138,24 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
           <CardContent>
             <div className="flex items-center justify-between mb-2">
               <span>Pontuação</span>
-              <Badge variant={getScoreVariant(ats_json.breakdown.keywords.score)}>
-                {ats_json.breakdown.keywords.score}/15
+              <Badge variant={getScoreVariant(ats_json.categorias.palavras_chave.pontuacao_local)}>
+                {ats_json.categorias.palavras_chave.pontuacao_local}/15
               </Badge>
             </div>
-            <Progress value={(ats_json.breakdown.keywords.score / 15) * 100} />
+            <Progress value={(ats_json.categorias.palavras_chave.pontuacao_local / 15) * 100} />
             
-            {ats_json.breakdown.keywords.present.length > 0 && (
+            {ats_json.categorias.palavras_chave.presentes?.length > 0 && (
               <div className="mt-2">
                 <p className="text-sm font-medium text-green-600">
-                  Presentes: {ats_json.breakdown.keywords.present.join(", ")}
+                  Presentes: {ats_json.categorias.palavras_chave.presentes.join(", ")}
                 </p>
               </div>
             )}
             
-            {ats_json.breakdown.keywords.absent.length > 0 && (
+            {ats_json.categorias.palavras_chave.ausentes?.length > 0 && (
               <div className="mt-2">
                 <p className="text-sm font-medium text-red-600">
-                  Ausentes: {ats_json.breakdown.keywords.absent.join(", ")}
+                  Ausentes: {ats_json.categorias.palavras_chave.ausentes.join(", ")}
                 </p>
               </div>
             )}
@@ -172,16 +172,16 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
           <CardContent>
             <div className="flex items-center justify-between mb-2">
               <span>Pontuação</span>
-              <Badge variant={getScoreVariant(ats_json.breakdown.impact_results.score)}>
-                {ats_json.breakdown.impact_results.score}/10
+              <Badge variant={getScoreVariant(ats_json.categorias.resultados_impacto.pontuacao_local)}>
+                {ats_json.categorias.resultados_impacto.pontuacao_local}/10
               </Badge>
             </div>
-            <Progress value={(ats_json.breakdown.impact_results.score / 10) * 100} />
-            {ats_json.breakdown.impact_results.evidence.length > 0 && (
+            <Progress value={(ats_json.categorias.resultados_impacto.pontuacao_local / 10) * 100} />
+            {ats_json.categorias.resultados_impacto.evidencias.length > 0 && (
               <div className="mt-2 text-sm text-muted-foreground">
                 <strong>Evidências:</strong>
                 <ul className="list-disc list-inside mt-1">
-                  {ats_json.breakdown.impact_results.evidence.map((evidence, idx) => (
+                  {ats_json.categorias.resultados_impacto.evidencias.map((evidence, idx) => (
                     <li key={idx}>{evidence}</li>
                   ))}
                 </ul>
@@ -192,22 +192,21 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
       </div>
 
       {/* Ações Prioritárias */}
-      {ats_json.top_actions.length > 0 && (
+      {ats_json.acoes_prioritarias?.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Ações Prioritárias</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {ats_json.top_actions.map((action, idx) => (
+              {ats_json.acoes_prioritarias.map((action, idx) => (
                 <div key={idx} className="border-l-4 border-primary pl-4">
-                  <h4 className="font-semibold text-foreground">{action.title}</h4>
-                  <p className="text-sm text-muted-foreground mt-1">{action.why}</p>
+                  <h4 className="font-semibold text-foreground">{action.titulo}</h4>
                   <p className="text-sm mt-2">
-                    <strong>Como fazer:</strong> {action.how_example}
+                    <strong>Como fazer:</strong> {action.como_fazer}
                   </p>
                   <Badge variant="outline" className="mt-2">
-                    +{action.est_impact_points} pontos estimados
+                    +{action.ganho_estimado_pontos} pontos estimados
                   </Badge>
                 </div>
               ))}
@@ -217,14 +216,14 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
       )}
 
       {/* Frases Prontas */}
-      {ats_json.ready_to_paste_bullets.length > 0 && (
+      {ats_json.frases_prontas?.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Frases Prontas para Usar</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {ats_json.ready_to_paste_bullets.map((bullet, idx) => (
+              {ats_json.frases_prontas.map((bullet, idx) => (
                 <div key={idx} className="p-3 bg-muted rounded-md text-sm">
                   {bullet}
                 </div>
@@ -235,45 +234,53 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
       )}
 
       {/* Entidades Detectadas */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Perfil Detectado</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
-            <div>
-              <h4 className="font-medium mb-2">Cargos</h4>
-              <div className="flex flex-wrap gap-1">
-                {ats_json.detected_entities.roles.map((role, idx) => (
-                  <Badge key={idx} variant="secondary">
-                    {role}
-                  </Badge>
-                ))}
-              </div>
+      {ats_json.perfil_detectado && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Perfil Detectado</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-4">
+              {ats_json.perfil_detectado.cargos?.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-2">Cargos</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {ats_json.perfil_detectado.cargos.map((role, idx) => (
+                      <Badge key={idx} variant="secondary">
+                        {role}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {ats_json.perfil_detectado.ferramentas?.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-2">Ferramentas</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {ats_json.perfil_detectado.ferramentas.map((tool, idx) => (
+                      <Badge key={idx} variant="outline">
+                        {tool}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {ats_json.perfil_detectado.dominios?.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-2">Domínios</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {ats_json.perfil_detectado.dominios.map((domain, idx) => (
+                      <Badge key={idx}>
+                        {domain}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <div>
-              <h4 className="font-medium mb-2">Ferramentas</h4>
-              <div className="flex flex-wrap gap-1">
-                {ats_json.detected_entities.tools.map((tool, idx) => (
-                  <Badge key={idx} variant="outline">
-                    {tool}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4 className="font-medium mb-2">Domínios</h4>
-              <div className="flex flex-wrap gap-1">
-                {ats_json.detected_entities.domains.map((domain, idx) => (
-                  <Badge key={idx}>
-                    {domain}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Relatório Markdown */}
       {ats_report_md && (
@@ -292,7 +299,7 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
       )}
 
       {/* Alertas e Erros */}
-      {ats_json.errors.length > 0 && (
+      {ats_json.alertas?.length > 0 && (
         <Card className="border-red-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-600">
@@ -302,7 +309,7 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              {ats_json.errors.map((error, idx) => (
+              {ats_json.alertas.map((error, idx) => (
                 <li key={idx} className="text-red-600 flex items-start gap-2">
                   <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   {error}
