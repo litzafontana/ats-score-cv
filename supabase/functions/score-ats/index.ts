@@ -10,13 +10,24 @@ const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
 // Função para extrair apenas JSON da resposta
 function extractJsonFromResponse(raw: string): any {
-  const start = raw.indexOf("{");
+  console.log('Raw response preview:', raw.substring(0, 200));
+  
+  // Remove markdown code blocks se presentes
+  let cleanedResponse = raw;
+  if (raw.includes('```json')) {
+    cleanedResponse = raw.replace(/```json\s*/g, '').replace(/\s*```/g, '');
+  }
+  if (raw.includes('```')) {
+    cleanedResponse = cleanedResponse.replace(/```[a-zA-Z]*\s*/g, '').replace(/\s*```/g, '');
+  }
+  
+  const start = cleanedResponse.indexOf("{");
   if (start === -1) throw new Error("JSON não encontrado na resposta.");
   
   let depth = 0;
   let end = -1;
-  for (let i = start; i < raw.length; i++) {
-    const c = raw[i];
+  for (let i = start; i < cleanedResponse.length; i++) {
+    const c = cleanedResponse[i];
     if (c === "{") depth++;
     if (c === "}") {
       depth--;
@@ -28,10 +39,14 @@ function extractJsonFromResponse(raw: string): any {
   }
   if (end === -1) throw new Error("JSON aparentemente incompleto.");
   
-  const jsonStr = raw.slice(start, end + 1);
+  const jsonStr = cleanedResponse.slice(start, end + 1);
+  console.log('Extracted JSON preview:', jsonStr.substring(0, 200));
+  
   try {
     return JSON.parse(jsonStr);
   } catch (e) {
+    console.error('JSON parse error:', e);
+    console.error('JSON string that failed:', jsonStr.substring(0, 500));
     throw new Error("Falha ao parsear JSON: " + (e as Error).message);
   }
 }
