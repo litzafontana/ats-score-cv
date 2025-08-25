@@ -370,13 +370,12 @@ Responda APENAS com JSON no formato:
 `;
 
   const payload = {
-    model: Deno.env.get('OPENAI_MODEL') || 'gpt-5',
+    model: Deno.env.get('OPENAI_MODEL') || 'gpt-5-2025-08-07',
     messages: [
       { role: 'system', content: systemMsg },
       { role: 'user', content: userPrompt }
     ],
-    temperature: 0.2,
-    max_tokens: 2200,
+    max_completion_tokens: 2200,
     response_format: { type: "json_object" }
   };
 
