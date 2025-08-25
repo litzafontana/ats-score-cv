@@ -194,7 +194,33 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      usuarios_gratuitos_stats: {
+        Row: {
+          analises_limite: number | null
+          analises_realizadas: number | null
+          created_at: string | null
+          email_hash: string | null
+          id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          analises_limite?: number | null
+          analises_realizadas?: number | null
+          created_at?: string | null
+          email_hash?: never
+          id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          analises_limite?: number | null
+          analises_realizadas?: number | null
+          created_at?: string | null
+          email_hash?: never
+          id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
