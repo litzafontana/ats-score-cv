@@ -194,16 +194,7 @@ export type Database = {
       }
     }
     Views: {
-      usuarios_gratuitos_stats: {
-        Row: {
-          data_criacao: string | null
-          media_analises_realizadas: number | null
-          novos_usuarios_7_dias: number | null
-          total_usuarios: number | null
-          usuarios_limite_atingido: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       [_ in never]: never
