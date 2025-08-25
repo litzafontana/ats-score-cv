@@ -386,28 +386,28 @@ async function executarAnaliseReal(input: DiagnosticInput): Promise<ResultadoPar
   ].join(" ");
 
   const userPrompt = `
-Você receberá:
-1) DESCRICAO_DA_VAGA (texto já extraído; se link falhou, o campo será curto)
-2) CURRICULO (texto plano extraído do PDF/DOCX)
+Você receberá:  
+1) DESCRICAO_DA_VAGA (texto já extraído; se link falhou, o campo será curto)  
+2) CURRICULO (texto plano extraído do PDF/DOCX)  
 
-Objetivo: analisar e retornar APENAS JSON válido no schema abaixo, com nota final (0–100) = soma das 6 categorias.
+Objetivo: analisar e retornar APENAS JSON válido no schema abaixo, com nota final (0–100) = soma das 6 categorias.  
 
 ### Categorias e limites
-1) experiencia_alinhada (0–30)
-2) competencias_tecnicas (0–25)
-3) palavras_chave (0–15)
-4) resultados_impacto (0–10)
-5) formacao_certificacoes (0–10)
-6) formatacao_ats (0–10)
+1) experiencia_alinhada (0–30)  
+2) competencias_tecnicas (0–25)  
+3) palavras_chave (0–15)  
+4) resultados_impacto (0–10)  
+5) formacao_certificacoes (0–10)  
+6) formatacao_ats (0–10)  
 
 ### Instruções
-- Extraia **10–20 keywords** da vaga (hard/soft). Marque as presentes/ausentes no CV.
-- Para cada categoria, gere \`"pontuacao_local"\` e \`"evidencias"\` (bullets curtas e concretas do CV).
-- Gere **2–4 \`alertas\`** técnicos de alto impacto.
-- Gere **3–5 \`acoes_prioritarias\`** (cada uma com \`{ titulo, como_fazer, ganho_estimado_pontos }\`).
-- Gere **1–5 \`frases_prontas\`** (bullets prontos de CV com verbos de ação + números sempre que possível).
-- Detecte \`"perfil_detectado"\` com \`{ cargos, ferramentas, dominios }\`.
-- Se a vaga veio por link e não foi possível extrair conteúdo útil, use \`"descricao_vaga_invalida": true\`, mas mantenha todo o schema.
+- Extraia **10–20 keywords** da vaga (hard/soft). Marque as presentes/ausentes no CV.  
+- Para cada categoria, gere \`"pontuacao_local"\` e \`"evidencias"\` (bullets curtas e concretas do CV).  
+- Gere **2–4 \`alertas\`** técnicos de alto impacto.  
+- Gere **3–5 \`acoes_prioritarias\`** (cada uma com \`{ titulo, como_fazer, ganho_estimado_pontos }\`).  
+- Gere **1–5 \`frases_prontas\`** (bullets prontos de CV com verbos de ação + números sempre que possível).  
+- Detecte \`"perfil_detectado"\` com \`{ cargos, ferramentas, dominios }\`.  
+- Se a vaga veio por link e não foi possível extrair conteúdo útil, use \`"descricao_vaga_invalida": true\`, mas mantenha todo o schema.  
 
 ---
 
@@ -419,7 +419,7 @@ ${vagaTxt}
 CURRICULO (texto):
 ${cvTxt}
 
-Responda APENAS com JSON no formato:
+\`\`\`json
 {
   "nota_final": <int 0-100>,
   "descricao_vaga_invalida": true|false,
@@ -438,6 +438,7 @@ Responda APENAS com JSON no formato:
   "frases_prontas": ["..."],
   "perfil_detectado": { "cargos": ["..."], "ferramentas": ["..."], "dominios": ["..."] }
 }
+\`\`\`
 `;
 
   const payload = {
