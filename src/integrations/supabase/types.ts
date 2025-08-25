@@ -196,28 +196,11 @@ export type Database = {
     Views: {
       usuarios_gratuitos_stats: {
         Row: {
-          analises_limite: number | null
-          analises_realizadas: number | null
-          created_at: string | null
-          email_hash: string | null
-          id: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          analises_limite?: number | null
-          analises_realizadas?: number | null
-          created_at?: string | null
-          email_hash?: never
-          id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          analises_limite?: number | null
-          analises_realizadas?: number | null
-          created_at?: string | null
-          email_hash?: never
-          id?: string | null
-          updated_at?: string | null
+          data_criacao: string | null
+          media_analises_realizadas: number | null
+          novos_usuarios_7_dias: number | null
+          total_usuarios: number | null
+          usuarios_limite_atingido: number | null
         }
         Relationships: []
       }
