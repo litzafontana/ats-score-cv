@@ -381,8 +381,8 @@ async function executarAnaliseReal(input: DiagnosticInput): Promise<ResultadoPar
   const systemMsg = [
     "Você é um avaliador ATS especialista em triagem de currículos.",
     "Responda SEMPRE em JSON válido estrito, sem texto fora do objeto.",
-    "nota_final deve ser a soma exata das seis pontuações por categoria.",
-    "Todos os inteiros devem respeitar os limites por categoria."
+    "A `nota_final` deve ser a soma exata das seis categorias.",
+    "Todos os inteiros devem respeitar os limites de cada categoria."
   ].join(" ");
 
   const userPrompt = `
@@ -392,7 +392,7 @@ Você receberá:
 
 Objetivo: analisar e retornar APENAS JSON válido no schema abaixo, com nota final (0–100) = soma das 6 categorias.
 
-Categorias e limites:
+### Categorias e limites
 1) experiencia_alinhada (0–30)
 2) competencias_tecnicas (0–25)
 3) palavras_chave (0–15)
@@ -400,14 +400,18 @@ Categorias e limites:
 5) formacao_certificacoes (0–10)
 6) formatacao_ats (0–10)
 
-Instruções:
-- Extraia 10–20 keywords da vaga (hard/soft). Marque presentes/ausentes no CV.
-- Para cada categoria, gere "pontuacao_local" e "evidencias" (bullets curtas e concretas do CV).
-- Gere 2–4 "alertas" técnicos de alto impacto.
-- Gere 3–5 "acoes_prioritarias" ({ "titulo", "como_fazer", "ganho_estimado_pontos" }).
-- Gere 1–5 "frases_prontas" (bullets prontos de CV com verbos de ação e números quando possível).
-- Detecte "perfil_detectado" ({ "cargos", "ferramentas", "dominios" }).
-- Se a vaga veio por link e não foi possível extrair conteúdo útil, use "descricao_vaga_invalida": true, mas mantenha o schema.
+### Instruções
+- Extraia **10–20 keywords** da vaga (hard/soft). Marque as presentes/ausentes no CV.
+- Para cada categoria, gere \`"pontuacao_local"\` e \`"evidencias"\` (bullets curtas e concretas do CV).
+- Gere **2–4 \`alertas\`** técnicos de alto impacto.
+- Gere **3–5 \`acoes_prioritarias\`** (cada uma com \`{ titulo, como_fazer, ganho_estimado_pontos }\`).
+- Gere **1–5 \`frases_prontas\`** (bullets prontos de CV com verbos de ação + números sempre que possível).
+- Detecte \`"perfil_detectado"\` com \`{ cargos, ferramentas, dominios }\`.
+- Se a vaga veio por link e não foi possível extrair conteúdo útil, use \`"descricao_vaga_invalida": true\`, mas mantenha todo o schema.
+
+---
+
+## 🎯 Formato de resposta (único válido)
 
 DESCRICAO_DA_VAGA (texto):
 ${vagaTxt}
