@@ -56,7 +56,18 @@ serve(async (req) => {
       );
     }
 
-    console.log(`📊 Diagnóstico encontrado - Pago: ${diagnostico.pago}`);
+    // Buscar informações de análises gratuitas do usuário
+    const { data: usuarioGratuito } = await supabase
+      .from('usuarios_gratuitos')
+      .select('*')
+      .eq('email', diagnostico.email.toLowerCase())
+      .maybeSingle();
+
+    const analisesRestantes = usuarioGratuito 
+      ? Math.max(0, usuarioGratuito.analises_limite - usuarioGratuito.analises_realizadas)
+      : 2; // Default para novos usuários
+
+    console.log(`📊 Diagnóstico encontrado - Pago: ${diagnostico.pago}, Análises restantes: ${analisesRestantes}`);
 
     // Check if it's paid to return full or partial result
     if (diagnostico.pago) {
@@ -65,10 +76,13 @@ serve(async (req) => {
         id: diagnostico.id,
         email: diagnostico.email,
         nota_ats: diagnostico.nota_ats,
+        alertas_top2: diagnostico.alertas_top2,
+        json_result_rich: diagnostico.json_result_rich,
         resultado_completo: diagnostico.resultado_completo,
         created_at: diagnostico.created_at,
         updated_at: diagnostico.updated_at,
-        pago: true
+        pago: true,
+        analises_restantes: analisesRestantes
       };
 
       return new Response(
@@ -85,10 +99,13 @@ serve(async (req) => {
         email: diagnostico.email,
         nota_ats: diagnostico.nota_ats,
         alertas_top2: diagnostico.alertas_top2,
+        json_result_rich: diagnostico.json_result_rich,
         resumo_rapido: gerarResumoRapido(diagnostico.alertas_top2),
         created_at: diagnostico.created_at,
         pago: false,
-        upgrade_available: true
+        upgrade_available: true,
+        analises_restantes: analisesRestantes,
+        tipo_analise: analisesRestantes > 0 ? 'robusta_gratuita' : 'basica_limitada'
       };
 
       return new Response(

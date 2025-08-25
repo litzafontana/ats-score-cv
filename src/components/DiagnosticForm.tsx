@@ -6,11 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadArea } from "./UploadArea";
-import { Loader2, Sparkles, Copy } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { ResultadoAnalise } from "./ResultadoAnalise";
-import type { AnaliseResult } from "@/lib/aiSchema";
 
 export function DiagnosticForm() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -21,7 +19,6 @@ export function DiagnosticForm() {
   const [jobText, setJobText] = useState("");
   const [cvInputType, setCvInputType] = useState<"upload" | "text">("upload");
   const [jobInputType, setJobInputType] = useState<"url" | "text">("url");
-  const [resultado, setResultado] = useState<AnaliseResult | null>(null);
   const { toast } = useToast();
 
   const handleAnalyze = async () => {
@@ -108,53 +105,28 @@ export function DiagnosticForm() {
     try {
       console.log("🚀 Iniciando análise ATS...");
 
-      // Passo 1: Extrair estrutura do CV
       toast({
-        title: "Extraindo dados do CV",
-        description: "Analisando a estrutura do seu currículo...",
+        title: "Analisando currículo",
+        description: "Processando seu CV e comparando com a vaga...",
       });
 
-      const { data: extractData, error: extractError } = await supabase.functions.invoke('extract-cv', {
-        body: { curriculo_texto: cvContent }
-      });
-
-      if (extractError) {
-        throw new Error(extractError.message);
-      }
-
-      console.log("✅ CV extraído:", extractData.cv_struct);
-
-      // Passo 2: Análise ATS completa
-      toast({
-        title: "Analisando compatibilidade ATS",
-        description: "Comparando seu CV com a vaga...",
-      });
-
-      const { data: scoreData, error: scoreError } = await supabase.functions.invoke('score-ats', {
+      // Chama a função diagnostico que implementa o controle de limite
+      const { data: diagnosticoData, error: diagnosticoError } = await supabase.functions.invoke('diagnostico', {
         body: { 
-          vaga_texto: vagaTexto,
-          cv_struct: extractData.cv_struct
+          email: email.toLowerCase().trim(),
+          cv_content: cvContent,
+          job_description: vagaTexto
         }
       });
 
-      if (scoreError) {
-        throw new Error(scoreError.message);
+      if (diagnosticoError) {
+        throw new Error(diagnosticoError.message);
       }
 
-      console.log("✅ Análise concluída:", scoreData);
+      console.log("✅ Diagnóstico concluído:", diagnosticoData);
 
-      const analiseResult: AnaliseResult = {
-        cv_struct: extractData.cv_struct,
-        ats_json: scoreData.ats_json,
-        ats_report_md: scoreData.ats_report_md || ""
-      };
-
-      setResultado(analiseResult);
-
-      toast({
-        title: "Análise concluída!",
-        description: `Sua pontuação ATS: ${scoreData.ats_json.nota_final}/100`,
-      });
+      // Redirecionar para a página de resultado
+      window.location.href = `/resultado/${diagnosticoData.id}`;
 
     } catch (error: any) {
       console.error("❌ Erro na análise:", error);
@@ -169,14 +141,10 @@ export function DiagnosticForm() {
   };
 
   const copiarFrasesProntas = () => {
-    if (resultado?.ats_json.frases_prontas) {
-      const frases = resultado.ats_json.frases_prontas.join('\n');
-      navigator.clipboard.writeText(frases);
-      toast({
-        title: "Copiado!",
-        description: "Frases prontas copiadas para a área de transferência",
-      });
-    }
+    toast({
+      title: "Funcionalidade atualizada",
+      description: "As frases prontas agora estão disponíveis na página de resultado completa.",
+    });
   };
 
   return (
@@ -186,7 +154,10 @@ export function DiagnosticForm() {
           Análise ATS do seu Currículo
         </CardTitle>
         <CardDescription className="text-base text-muted-foreground">
-          Descubra em segundos se seu CV está otimizado para sistemas de recrutamento
+          Descubra em segundos se seu CV está otimizado para sistemas de recrutamento<br/>
+          <span className="text-sm font-medium text-primary">
+            ✨ Primeiras 2 análises robustas GRATUITAS com IA
+          </span>
         </CardDescription>
       </CardHeader>
 
@@ -291,26 +262,12 @@ export function DiagnosticForm() {
         </div>
 
         <p className="text-xs text-muted-foreground text-center leading-relaxed">
-          Análise gratuita inclui pontuação geral e principais alertas. 
-          Para relatório completo com dicas personalizadas, você pode adquirir o diagnóstico premium.
+          <strong>Análise gratuita robusta:</strong> Suas primeiras 2 análises incluem IA avançada com recomendações detalhadas.<br/>
+          Após isso, análises básicas gratuitas ou upgrade para análise premium completa.
         </p>
 
-        {resultado && (
-          <div className="space-y-6 mt-8">
-            <div className="flex justify-center">
-              <Button
-                onClick={copiarFrasesProntas}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <Copy className="h-4 w-4" />
-                Copiar Frases Prontas
-              </Button>
-            </div>
-            
-            <ResultadoAnalise resultado={resultado} />
-          </div>
-        )}
+        {/* Resultado será mostrado na página dedicada */}
+        {/* Removido o resultado inline pois agora redireciona para página específica */}
       </CardContent>
     </Card>
   );

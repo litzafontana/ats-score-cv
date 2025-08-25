@@ -29,6 +29,8 @@ interface DiagnosticoResult {
   created_at: string;
   pago: boolean;
   upgrade_available?: boolean;
+  analises_restantes?: number;
+  tipo_analise?: 'robusta_gratuita' | 'basica_limitada';
 }
 
 export default function Resultado() {
@@ -188,13 +190,36 @@ export default function Resultado() {
           <p className="text-muted-foreground">
             Análise realizada em {new Date(diagnostico.created_at).toLocaleDateString('pt-BR')}
           </p>
+          {/* Info sobre análises restantes */}
+          {!diagnostico.pago && diagnostico.analises_restantes !== undefined && (
+            <div className="mt-4 p-3 bg-primary/10 rounded-lg">
+              <p className="text-sm font-medium text-primary">
+                {diagnostico.analises_restantes > 0 
+                  ? `✨ Você ainda tem ${diagnostico.analises_restantes} análise(s) robusta(s) gratuita(s) restante(s)`
+                  : '🔒 Você utilizou suas 2 análises robustas gratuitas. Esta foi uma análise básica.'
+                }
+              </p>
+              {diagnostico.tipo_analise === 'basica_limitada' && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Para análises robustas completas, considere o upgrade premium.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Score Card */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              Sua Pontuação ATS
+              <span>
+                Sua Pontuação ATS
+                {diagnostico.tipo_analise === 'basica_limitada' && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    (Análise Básica)
+                  </span>
+                )}
+              </span>
               {diagnostico.pago && (
                 <Badge variant="secondary" className="bg-success/10 text-success">
                   <Crown className="h-3 w-3 mr-1" />
@@ -203,7 +228,10 @@ export default function Resultado() {
               )}
             </CardTitle>
             <CardDescription>
-              Avaliação da compatibilidade do seu CV com sistemas ATS
+              {diagnostico.tipo_analise === 'basica_limitada' 
+                ? 'Pontuação estimada - upgrade para análise detalhada completa'
+                : 'Avaliação da compatibilidade do seu CV com sistemas ATS'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent>

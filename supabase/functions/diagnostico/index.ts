@@ -187,14 +187,81 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('📊 Executando análise ATS...');
+    // Verificar limite de análises gratuitas
+    console.log('🔍 Verificando limite de análises gratuitas...');
+    const emailLowercase = email.toLowerCase().trim();
+    
+    // Buscar ou criar registro do usuário gratuito
+    let { data: usuarioGratuito, error: fetchError } = await supabase
+      .from('usuarios_gratuitos')
+      .select('*')
+      .eq('email', emailLowercase)
+      .maybeSingle();
 
-    // Execução real da análise (com scraping, validação etc.)
-    const resultadoParcial = await executarAnaliseReal({
-      email,
-      cv_content,
-      job_description
-    });
+    if (fetchError) {
+      console.error('❌ Erro ao buscar usuário gratuito:', fetchError);
+      throw new Error('Erro ao verificar limite de análises');
+    }
+
+    // Se não existe, criar novo registro
+    if (!usuarioGratuito) {
+      const { data: novoUsuario, error: createError } = await supabase
+        .from('usuarios_gratuitos')
+        .insert({
+          email: emailLowercase,
+          analises_realizadas: 0,
+          analises_limite: 2
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('❌ Erro ao criar usuário gratuito:', createError);
+        throw new Error('Erro ao criar registro de usuário');
+      }
+
+      usuarioGratuito = novoUsuario;
+    }
+
+    // Verificar se ainda pode fazer análises gratuitas
+    const podeAnaliseGratuita = usuarioGratuito.analises_realizadas < usuarioGratuito.analises_limite;
+    
+    console.log(`📊 Executando análise ATS (tipo: ${podeAnaliseGratuita ? 'ROBUSTA GRATUITA' : 'BÁSICA'})...`);
+
+    let resultadoParcial: ResultadoParcial;
+
+    if (podeAnaliseGratuita) {
+      // Execução da análise robusta (gratuita)
+      resultadoParcial = await executarAnaliseReal({
+        email,
+        cv_content,
+        job_description
+      });
+
+      // Incrementar contador de análises realizadas
+      const { error: updateError } = await supabase
+        .from('usuarios_gratuitos')
+        .update({ 
+          analises_realizadas: usuarioGratuito.analises_realizadas + 1 
+        })
+        .eq('id', usuarioGratuito.id);
+
+      if (updateError) {
+        console.error('❌ Erro ao atualizar contador:', updateError);
+        // Não bloqueia a análise, apenas loga o erro
+      }
+
+      console.log(`✅ Análise robusta concluída. Restam ${usuarioGratuito.analises_limite - usuarioGratuito.analises_realizadas - 1} análises gratuitas.`);
+    } else {
+      // Execução da análise básica (limitada)
+      resultadoParcial = await executarAnaliseSimulada({
+        email,
+        cv_content,
+        job_description
+      });
+
+      console.log('✅ Análise básica concluída. Limite de análises gratuitas atingido.');
+    }
 
     console.log('💾 Salvando diagnóstico no banco...');
 
@@ -254,32 +321,32 @@ serve(async (req) => {
   }
 });
 
-// ===================== ANALISE SIMULADA (fallback) =====================
+// ===================== ANALISE SIMULADA (básica - limite atingido) =====================
 async function executarAnaliseSimulada(input: DiagnosticInput): Promise<ResultadoParcial> {
   await new Promise(resolve => setTimeout(resolve, 1000));
-  const nota = Math.floor(Math.random() * 40) + 60; // 60-100
+  const nota = Math.floor(Math.random() * 30) + 65; // 65-95
 
   const alertas = [
     {
       tipo: "critico",
-      titulo: "Falta de palavras-chave",
-      descricao: "Seu CV não contém palavras-chave importantes da vaga",
-      impacto: "Reduz significativamente as chances de passar pelo filtro ATS",
-      sugestao: "Inclua termos específicos da área e da vaga no seu CV"
+      titulo: "Limite de análises gratuitas atingido",
+      descricao: "Você já utilizou suas 2 análises robustas gratuitas. Esta é uma análise básica com feedback limitado.",
+      impacto: "Análise limitada não inclui recomendações personalizadas completas",
+      sugestao: "Para análise detalhada com todas as recomendações, considere o upgrade premium"
     },
     {
       tipo: "importante",
-      titulo: "Formatação inadequada",
-      descricao: "A formatação pode dificultar a leitura pelos sistemas ATS",
-      impacto: "Informações importantes podem não ser identificadas",
-      sugestao: "Use formatação simples, sem tabelas ou gráficos complexos"
+      titulo: "Oportunidades de melhoria identificadas",
+      descricao: "Seu CV tem potencial de otimização para sistemas ATS",
+      impacto: "Melhorias podem aumentar significativamente suas chances de aprovação",
+      sugestao: "A análise premium revelará pontos específicos de melhoria e ações prioritárias"
     }
   ];
 
   return {
     nota_ats: nota,
     alertas_top2: alertas,
-    resumo_rapido: "Seu CV possui boa estrutura geral, mas precisa de ajustes nas palavras-chave e formatação para melhor performance em sistemas ATS. A análise completa revelará pontos específicos de melhoria."
+    resumo_rapido: "Esta é uma análise básica. Você já utilizou suas 2 análises robustas gratuitas. Para obter recomendações detalhadas, ações prioritárias e frases prontas personalizadas, faça o upgrade para análise premium."
   };
 }
 
