@@ -363,6 +363,7 @@ export default function Resultado() {
             resultado={diagnostico.json_result_rich}
             diagnosticoId={diagnostico.id}
             isPaid={diagnostico.pago || diagnostico.tipo_analise === 'robusta_gratuita'}
+            handleUpgrade={handleUpgrade}
           />
         )}
 

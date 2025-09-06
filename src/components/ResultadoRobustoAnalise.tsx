@@ -24,9 +24,10 @@ interface ResultadoRobustoAnaliseProps {
   resultado: ATSRich;
   diagnosticoId: string;
   isPaid: boolean;
+  handleUpgrade?: () => void;
 }
 
-export function ResultadoRobustoAnalise({ resultado, diagnosticoId, isPaid }: ResultadoRobustoAnaliseProps) {
+export function ResultadoRobustoAnalise({ resultado, diagnosticoId, isPaid, handleUpgrade }: ResultadoRobustoAnaliseProps) {
   
   const getScoreColor = (score: number, maxScore: number) => {
     const percentage = (score / maxScore) * 100;
@@ -188,16 +189,20 @@ export function ResultadoRobustoAnalise({ resultado, diagnosticoId, isPaid }: Re
             <Progress value={resultado.nota_final} className="h-4" />
           </div>
 
-          {isPaid && (
-            <Button 
-              onClick={() => downloadPDF(diagnosticoId)}
-              className="mt-4"
-              size="lg"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Baixar Relatório (PDF)
-            </Button>
-          )}
+          <Button 
+            onClick={() => {
+              if (isPaid) {
+                downloadPDF(diagnosticoId);
+              } else if (handleUpgrade) {
+                handleUpgrade();
+              }
+            }}
+            className="mt-4 bg-primary hover:bg-primary/90"
+            size="lg"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {isPaid ? "Baixar Relatório (PDF)" : "Desbloquear no Premium"}
+          </Button>
         </CardContent>
       </Card>
 
