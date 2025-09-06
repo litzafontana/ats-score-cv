@@ -194,12 +194,17 @@ export default function Resultado() {
           {!diagnostico.pago && diagnostico.analises_restantes !== undefined && (
             <div className="mt-4 p-3 bg-primary/10 rounded-lg">
               <p className="text-sm font-medium text-primary">
-                {diagnostico.analises_restantes > 0 
-                  ? `✨ Você ainda tem ${diagnostico.analises_restantes} análise(s) robusta(s) gratuita(s) restante(s)`
-                  : '🔒 Você utilizou suas 2 análises robustas gratuitas. Esta foi uma análise básica.'
-                }
+                {diagnostico.analises_restantes > 0 ? (
+                  diagnostico.analises_restantes === 1 ? (
+                    "✨ Você ainda tem 1 análise robusta gratuita disponível (de 2 no total)."
+                  ) : (
+                    `✨ Você ainda tem ${diagnostico.analises_restantes} análises robustas gratuitas disponíveis.`
+                  )
+                ) : (
+                  "🔒 Você utilizou suas 2 análises robustas gratuitas. Esta foi uma análise básica."
+                )}
               </p>
-              {diagnostico.tipo_analise === 'basica_limitada' && (
+              {diagnostico.tipo_analise === "basica_limitada" && (
                 <p className="text-xs text-muted-foreground mt-1">
                   Para análises robustas completas, considere o upgrade premium.
                 </p>
