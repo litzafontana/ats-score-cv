@@ -66,16 +66,6 @@ const Index = () => {
               Analisar meu CV grátis
               <ArrowRight className="h-5 w-5" />
             </Button>
-            <Link to="/analisador">
-              <Button 
-                variant="outline" 
-                size="lg" 
-                className="shadow-lg bg-white/80 backdrop-blur border-primary/20 hover:bg-primary/5"
-              >
-                <Brain className="h-5 w-5 mr-2" />
-                Análise Avançada
-              </Button>
-            </Link>
             <ExampleAnalysisModal />
           </div>
 
