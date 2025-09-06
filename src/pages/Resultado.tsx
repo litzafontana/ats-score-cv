@@ -219,13 +219,18 @@ export default function Resultado() {
                     (Análise Básica)
                   </span>
                 )}
+                {diagnostico.tipo_analise === 'robusta_gratuita' && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    (Análise Robusta - Gratuita)
+                  </span>
+                )}
+                {diagnostico.pago && (
+                  <Badge variant="secondary" className="bg-success/10 text-success ml-2">
+                    <Crown className="h-3 w-3 mr-1" />
+                    Premium
+                  </Badge>
+                )}
               </span>
-              {diagnostico.pago && (
-                <Badge variant="secondary" className="bg-success/10 text-success">
-                  <Crown className="h-3 w-3 mr-1" />
-                  Premium
-                </Badge>
-              )}
             </CardTitle>
             <CardDescription>
             {diagnostico.tipo_analise === 'basica_limitada' && (
@@ -351,8 +356,8 @@ export default function Resultado() {
             </CardContent>
           </Card>
 
-        {/* Full Result Section (if paid) */}
-        {diagnostico.pago && diagnostico.json_result_rich && (
+        {/* Full Result Section (if has rich result) */}
+        {diagnostico.json_result_rich && (
           <ResultadoRobustoAnalise 
             resultado={diagnostico.json_result_rich}
             diagnosticoId={diagnostico.id}
