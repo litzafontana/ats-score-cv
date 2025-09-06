@@ -301,8 +301,9 @@ export default function Resultado() {
           </CardContent>
         </Card>
 
-        {/* Upgrade Section (always show for testing) */}
-        <Card className="mb-6 border-primary/50">
+        {/* Upgrade Section - só aparece se for análise básica */}
+        {diagnostico.tipo_analise === 'basica_limitada' && (
+          <Card className="mb-6 border-primary/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Lock className="h-5 w-5 text-primary" />
@@ -315,9 +316,7 @@ export default function Resultado() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-foreground">
-                    O que você ganha:
-                  </h4>
+                  <h4 className="font-semibold text-foreground">O que você ganha:</h4>
                   <ul className="text-sm text-muted-foreground space-y-1">
                     <li>• Análise detalhada de todas as seções</li>
                     <li>• Todos os alertas e sugestões</li>
@@ -327,9 +326,7 @@ export default function Resultado() {
                   </ul>
                 </div>
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-foreground">
-                    Garantia:
-                  </h4>
+                  <h4 className="font-semibold text-foreground">Garantia:</h4>
                   <ul className="text-sm text-muted-foreground space-y-1">
                     <li>• Análise completa em até 5 minutos</li>
                     <li>• Suporte via email</li>
@@ -337,16 +334,14 @@ export default function Resultado() {
                   </ul>
                 </div>
               </div>
-              
               <Separator className="my-4" />
-              
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-2xl font-bold text-foreground">R$ 29,90</p>
                   <p className="text-sm text-muted-foreground">Pagamento único</p>
                 </div>
-                <Button 
-                  onClick={handleUpgrade} 
+                <Button
+                  onClick={handleUpgrade}
                   size="lg"
                   className="bg-primary hover:bg-primary/90"
                 >
@@ -355,13 +350,14 @@ export default function Resultado() {
               </div>
             </CardContent>
           </Card>
+        )}
 
         {/* Full Result Section (if has rich result) */}
         {diagnostico.json_result_rich && (
           <ResultadoRobustoAnalise 
             resultado={diagnostico.json_result_rich}
             diagnosticoId={diagnostico.id}
-            isPaid={diagnostico.pago}
+            isPaid={diagnostico.pago || diagnostico.tipo_analise === 'robusta_gratuita'}
           />
         )}
 
