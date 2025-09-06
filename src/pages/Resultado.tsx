@@ -228,11 +228,18 @@ export default function Resultado() {
               )}
             </CardTitle>
             <CardDescription>
-              {diagnostico.tipo_analise === 'basica_limitada' 
-                ? 'Pontuação estimada - upgrade para análise detalhada completa'
-                : 'Avaliação da compatibilidade do seu CV com sistemas ATS'
-              }
-            </CardDescription>
+            {diagnostico.tipo_analise === 'basica_limitada' && (
+    'Pontuação estimada - upgrade para análise detalhada completa'
+  )}
+
+  {diagnostico.tipo_analise === 'robusta_gratuita' && (
+    'Avaliação detalhada gratuita (até 2 análises disponíveis)'
+  )}
+
+  {diagnostico.pago && (
+    'Relatório premium com todas as recomendações e detalhes completos'
+  )}
+</CardDescription>
           </CardHeader>
           <CardContent>
             <ScoreProgress score={diagnostico.nota_ats} />
