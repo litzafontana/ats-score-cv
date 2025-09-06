@@ -289,9 +289,8 @@ export default function Resultado() {
           </CardContent>
         </Card>
 
-        {/* Upgrade Section (if not paid) */}
-        {!diagnostico.pago && diagnostico.upgrade_available && (
-          <Card className="mb-6 border-primary/50">
+        {/* Upgrade Section (always show for testing) */}
+        <Card className="mb-6 border-primary/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Lock className="h-5 w-5 text-primary" />
@@ -344,7 +343,6 @@ export default function Resultado() {
               </div>
             </CardContent>
           </Card>
-        )}
 
         {/* Full Result Section (if paid) */}
         {diagnostico.pago && diagnostico.json_result_rich && (
