@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { ATSRich, Categoria } from "@/lib/aiSchema";
 import { downloadPDF } from "@/lib/report";
+import { useNavigate } from "react-router-dom";
 
 interface ResultadoRobustoAnaliseProps {
   resultado: ATSRich;
@@ -28,6 +29,7 @@ interface ResultadoRobustoAnaliseProps {
 }
 
 export function ResultadoRobustoAnalise({ resultado, diagnosticoId, isPaid, handleUpgrade }: ResultadoRobustoAnaliseProps) {
+  const navigate = useNavigate();
   
   const getScoreColor = (score: number, maxScore: number) => {
     const percentage = (score / maxScore) * 100;
@@ -192,9 +194,11 @@ export function ResultadoRobustoAnalise({ resultado, diagnosticoId, isPaid, hand
           <Button 
             onClick={() => {
               if (isPaid) {
-                downloadPDF(diagnosticoId);
-              } else if (handleUpgrade) {
-                handleUpgrade();
+                // Usuário premium → libera download real
+                navigate(`/api/download-pdf?id=${diagnosticoId}`);
+              } else {
+                // Usuário free → redireciona para página de upgrade
+                navigate("/assinatura");
               }
             }}
             className="mt-4 bg-primary hover:bg-primary/90"
