@@ -11,56 +11,53 @@ import { Link } from "react-router-dom";
 const Index = () => {
   console.log("Index component is rendering");
   return (
-    <div className="min-h-screen animated-gradient relative overflow-hidden">
-      {/* Particle Background */}
-      <div className="particles-bg"></div>
-      
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/30">
       {/* Header */}
-      <header className="border-b glass-effect sticky top-0 z-50">
+      <header className="border-b bg-white/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center hover-glow">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
               <Target className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold gradient-text">
+            <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               ATS Score
             </span>
           </div>
-          <Button variant="outline" size="sm" className="glass-effect hover-glow">
+          <Button variant="outline" size="sm">
             Login
           </Button>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="py-20 px-4">
+      <section className="py-16 px-4">
         <div className="container mx-auto text-center max-w-4xl">
-          <Badge variant="secondary" className="mb-8 px-6 py-3 glass-effect hover-scale">
+          <Badge variant="secondary" className="mb-6 px-4 py-2">
             <Zap className="h-4 w-4 mr-2" />
             Análise instantânea com IA
           </Badge>
           
-          <h1 className="text-5xl md:text-7xl font-bold mb-8 leading-tight">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
             Sua{" "}
-            <span className="gradient-text text-glow">
+            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               pontuação
             </span>{" "}
             para passar no filtro dos{" "}
-            <span className="gradient-text text-glow">
+            <span className="bg-gradient-to-r from-accent to-primary bg-clip-text text-transparent">
               recrutadores
             </span>
           </h1>
           
-          <p className="text-xl text-muted-foreground mb-12 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-xl text-muted-foreground mb-8 leading-relaxed max-w-2xl mx-auto">
             Descubra em segundos se o seu currículo está pronto para vencer o robô do recrutamento. 
             Receba sua nota ATS e saiba exatamente o que melhorar para chegar à entrevista.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-6 justify-center mb-16">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
             <Button 
               variant="hero" 
               size="lg" 
-              className="pulse-glow hover-scale text-lg px-8 py-4"
+              className="shadow-2xl"
               onClick={() => {
                 const formSection = document.getElementById('diagnostic-form');
                 formSection?.scrollIntoView({ behavior: 'smooth' });
@@ -73,17 +70,17 @@ const Index = () => {
           </div>
 
           {/* Preview Score Card */}
-          <Card className="max-w-md mx-auto glass-effect border-0 hover-glow hover-scale">
-            <CardContent className="p-8">
-              <div className="text-sm text-muted-foreground mb-4">Exemplo de resultado:</div>
+          <Card className="max-w-md mx-auto shadow-xl border-0 bg-white/80 backdrop-blur">
+            <CardContent className="p-6">
+              <div className="text-sm text-muted-foreground mb-2">Exemplo de resultado:</div>
               <ScoreProgress score={73} />
-              <div className="mt-6 space-y-3 text-left">
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="h-2 w-2 rounded-full bg-warning animate-pulse"></div>
+              <div className="mt-4 space-y-2 text-left">
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="h-2 w-2 rounded-full bg-warning"></div>
                   <span>Adicionar palavras-chave específicas</span>
                 </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="h-2 w-2 rounded-full bg-danger animate-pulse"></div>
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="h-2 w-2 rounded-full bg-danger"></div>
                   <span>Melhorar formatação para ATS</span>
                 </div>
               </div>
@@ -93,41 +90,41 @@ const Index = () => {
       </section>
 
       {/* Features */}
-      <section className="py-20 px-4">
+      <section className="py-16 px-4 bg-white/30">
         <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-6 gradient-text">Por que usar o ATS Score?</h2>
-            <p className="text-xl text-muted-foreground">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Por que usar o ATS Score?</h2>
+            <p className="text-lg text-muted-foreground">
               Ferramenta profissional usada por milhares de candidatos
             </p>
           </div>
           
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="p-8 border-0 glass-effect hover-glow hover-scale">
-              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6 hover-glow">
-                <Zap className="h-8 w-8 text-primary" />
+            <Card className="p-6 border-0 shadow-lg bg-white/80 backdrop-blur">
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Zap className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">Análise Instantânea</h3>
+              <h3 className="text-xl font-semibold mb-2">Análise Instantânea</h3>
               <p className="text-muted-foreground">
                 Resultado em segundos com tecnologia de IA avançada
               </p>
             </Card>
             
-            <Card className="p-8 border-0 glass-effect hover-glow hover-scale">
-              <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center mb-6 hover-glow">
-                <CheckCircle className="h-8 w-8 text-success" />
+            <Card className="p-6 border-0 shadow-lg bg-white/80 backdrop-blur">
+              <div className="h-12 w-12 rounded-full bg-success/10 flex items-center justify-center mb-4">
+                <CheckCircle className="h-6 w-6 text-success" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">100% Preciso</h3>
+              <h3 className="text-xl font-semibold mb-2">100% Preciso</h3>
               <p className="text-muted-foreground">
                 Simula sistemas reais de recrutamento das maiores empresas
               </p>
             </Card>
             
-            <Card className="p-8 border-0 glass-effect hover-glow hover-scale">
-              <div className="h-16 w-16 rounded-full bg-accent/10 flex items-center justify-center mb-6 hover-glow">
-                <Shield className="h-8 w-8 text-accent" />
+            <Card className="p-6 border-0 shadow-lg bg-white/80 backdrop-blur">
+              <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
+                <Shield className="h-6 w-6 text-accent" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">Seguro e Privado</h3>
+              <h3 className="text-xl font-semibold mb-2">Seguro e Privado</h3>
               <p className="text-muted-foreground">
                 Seus dados são protegidos e nunca compartilhados
               </p>
@@ -137,7 +134,7 @@ const Index = () => {
       </section>
 
       {/* Main Form */}
-      <section id="diagnostic-form" className="py-20 px-4">
+      <section id="diagnostic-form" className="py-16 px-4">
         <div className="container mx-auto">
           <DiagnosticForm />
         </div>
@@ -147,7 +144,7 @@ const Index = () => {
       <FAQSection />
 
       {/* Footer */}
-      <footer className="border-t glass-effect py-12 px-4">
+      <footer className="border-t bg-white/50 backdrop-blur-sm py-8 px-4">
         <div className="container mx-auto text-center text-sm text-muted-foreground">
           <p>&copy; 2024 ATS Score. Todos os direitos reservados.</p>
         </div>
