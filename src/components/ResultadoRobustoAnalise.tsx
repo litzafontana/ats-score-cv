@@ -205,7 +205,7 @@ export function ResultadoRobustoAnalise({ resultado, diagnosticoId, isPaid, hand
             size="lg"
           >
             <Download className="h-4 w-4 mr-2" />
-            {isPaid ? "Baixar Relatório (PDF)" : "Desbloquear no Premium"}
+            {isPaid ? "Baixar Relatório (PDF)" : "Assine para Baixar PDF"}
           </Button>
         </CardContent>
       </Card>
