@@ -173,6 +173,34 @@ export function ResultadoRobustoAnalise({ resultado, diagnosticoId, isPaid, hand
 
   return (
     <div className="space-y-6">
+      {/* Aviso de URL não lida automaticamente */}
+      {resultado.descricao_vaga_invalida && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardContent className="pt-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-amber-800">
+                  Não conseguimos ler essa URL automaticamente
+                </p>
+                <p className="text-xs text-amber-700">
+                  Algumas plataformas (como Gupy e Vale) bloqueiam leitura automática. 
+                  Para uma análise mais precisa, recomendamos refazer o teste colando o texto completo da vaga.
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.open('/analisador', '_blank')}
+                  className="mt-2 text-amber-700 border-amber-300 hover:bg-amber-100"
+                >
+                  Refazer com Texto da Vaga
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Pontuação Geral */}
       <Card className="border-primary/20 bg-gradient-to-br from-background to-secondary/30">
         <CardHeader className="text-center pb-4">

@@ -50,21 +50,21 @@ function stripHtml(html: string): string {
 
 async function scrapeJobPage(src: string): Promise<{ text: string; ok: boolean }> {
   try {
-    const res = await fetch(src, {
+    const res = await fetch(Deno.env.get('SUPABASE_URL') + '/functions/v1/scrape', {
+      method: 'POST',
       headers: {
-        "User-Agent": "Mozilla/5.0 ATS-Evaluator/1.0",
-        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
-      }
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`
+      },
+      body: JSON.stringify({ urlOrText: src })
     });
+    
     if (!res.ok) return { text: "", ok: false };
-    const html = await res.text();
-    const text = stripHtml(html);
-    // tenta iniciar no bloco mais relevante
-    const rx = /(responsabilid|requisitos|atividad|qualific|requirements|duties|about the role)/i;
-    const idx = text.search(rx);
-    const sliced = idx > -1 ? text.slice(idx) : text;
-    return { text: truncate(sliced, 18000), ok: true };
-  } catch {
+    
+    const result = await res.json();
+    return { text: result.text || "", ok: result.ok || false };
+  } catch (error) {
+    console.error('Erro no scraping:', error);
     return { text: "", ok: false };
   }
 }

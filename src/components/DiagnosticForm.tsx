@@ -224,6 +224,13 @@ export function DiagnosticForm() {
                   <p className="text-xs text-muted-foreground">
                     Cole o link da vaga no LinkedIn, Catho, InfoJobs ou site da empresa
                   </p>
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs text-amber-800">
+                      <strong>Não conseguimos ler automaticamente?</strong><br/>
+                      Algumas plataformas (como Gupy e Vale) bloqueiam leitura automática. 
+                      Se isso acontecer, você será informado para colar o texto da vaga manualmente.
+                    </p>
+                  </div>
                 </div>
               </TabsContent>
               
