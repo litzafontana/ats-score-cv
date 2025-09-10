@@ -15,10 +15,12 @@ import {
   XCircle,
   AlertTriangle,
   Lightbulb,
-  Crown
+  Crown,
+  ArrowLeft
 } from "lucide-react";
 import type { ATSRich, Categoria } from "@/lib/aiSchema";
 import { downloadPDF } from "@/lib/report";
+import { useEffect } from "react";
 
 interface ResultadoRobustoAnaliseProps {
   resultado: ATSRich;
@@ -28,6 +30,18 @@ interface ResultadoRobustoAnaliseProps {
 }
 
 export function ResultadoRobustoAnalise({ resultado, diagnosticoId, isPaid, handleUpgrade }: ResultadoRobustoAnaliseProps) {
+  
+  // Verificar se precisa voltar para o formulário devido a URL inválida
+  useEffect(() => {
+    if (resultado.descricao_vaga_invalida) {
+      // Redirecionar após 5 segundos para dar tempo de ler a mensagem
+      const timer = setTimeout(() => {
+        window.location.href = '/?retry=url_failed&mode=text_only';
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [resultado.descricao_vaga_invalida]);
   
   const getScoreColor = (score: number, maxScore: number) => {
     const percentage = (score / maxScore) * 100;
@@ -173,28 +187,39 @@ export function ResultadoRobustoAnalise({ resultado, diagnosticoId, isPaid, hand
 
   return (
     <div className="space-y-6">
-      {/* Aviso de URL não lida automaticamente */}
+      {/* Aviso crítico de URL não lida - Redirecionamento automático */}
       {resultado.descricao_vaga_invalida && (
-        <Card className="border-amber-200 bg-amber-50/50">
+        <Card className="border-red-200 bg-red-50/50">
           <CardContent className="pt-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-amber-800">
-                  Não conseguimos ler essa URL automaticamente
+              <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-red-800">
+                  ⚠️ Análise baseada em URL inválida detectada
                 </p>
-                <p className="text-xs text-amber-700">
-                  Algumas plataformas (como Gupy e Vale) bloqueiam leitura automática. 
-                  Para uma análise mais precisa, recomendamos refazer o teste colando o texto completo da vaga.
+                <p className="text-xs text-red-700">
+                  Não conseguimos extrair o conteúdo da URL fornecida. Algumas plataformas (como Gupy, Vale, InfoJobs) 
+                  bloqueiam leitura automática por robôs. A análise pode estar imprecisa.
                 </p>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => window.open('/analisador', '_blank')}
-                  className="mt-2 text-amber-700 border-amber-300 hover:bg-amber-100"
-                >
-                  Refazer com Texto da Vaga
-                </Button>
+                <div className="bg-red-100 p-3 rounded-md border border-red-200">
+                  <p className="text-xs font-medium text-red-800 mb-2">
+                    🔄 Redirecionamento automático em 5 segundos...
+                  </p>
+                  <p className="text-xs text-red-700">
+                    Você será redirecionado para refazer a análise colando o texto completo da vaga.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    onClick={() => window.location.href = '/?retry=url_failed&mode=text_only'}
+                    className="text-xs"
+                  >
+                    <ArrowLeft className="h-3 w-3 mr-1" />
+                    Refazer Agora com Texto
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>

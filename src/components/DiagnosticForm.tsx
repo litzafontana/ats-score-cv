@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,32 @@ export function DiagnosticForm() {
   const [jobText, setJobText] = useState("");
   const [cvInputType, setCvInputType] = useState<"upload" | "text">("upload");
   const [jobInputType, setJobInputType] = useState<"url" | "text">("url");
+  const [forceTextOnly, setForceTextOnly] = useState(false);
+  const [showRetryMessage, setShowRetryMessage] = useState(false);
   const { toast } = useToast();
+  
+  // Verificar parâmetros URL para forçar modo texto
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const retry = urlParams.get('retry');
+    const mode = urlParams.get('mode');
+    
+    if (retry === 'url_failed' && mode === 'text_only') {
+      setForceTextOnly(true);
+      setJobInputType('text');
+      setShowRetryMessage(true);
+      
+      // Limpar URL params
+      window.history.replaceState({}, '', window.location.pathname);
+      
+      toast({
+        title: "Refaça a análise com o texto da vaga",
+        description: "A URL não pôde ser lida automaticamente. Cole o texto completo da vaga abaixo.",
+        variant: "destructive",
+        duration: 8000
+      });
+    }
+  }, [toast]);
 
   const handleAnalyze = async () => {
     if (!email) {
@@ -208,39 +233,70 @@ export function DiagnosticForm() {
           {/* Job Input */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">Vaga de Interesse</Label>
-            <Tabs value={jobInputType} onValueChange={(value) => setJobInputType(value as "url" | "text")}>
+            
+            {/* Aviso de nova tentativa */}
+            {showRetryMessage && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm font-medium text-red-800 mb-1">
+                  🔄 Nova tentativa necessária
+                </p>
+                <p className="text-xs text-red-700">
+                  A URL anterior não pôde ser processada automaticamente. 
+                  Cole o texto completo da vaga abaixo para obter uma análise precisa.
+                </p>
+              </div>
+            )}
+            
+            <Tabs value={jobInputType} onValueChange={(value) => !forceTextOnly && setJobInputType(value as "url" | "text")}>
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="url">Link da vaga</TabsTrigger>
+                <TabsTrigger value="url" disabled={forceTextOnly}>Link da vaga</TabsTrigger>
                 <TabsTrigger value="text">Descrição</TabsTrigger>
               </TabsList>
               
               <TabsContent value="url" className="mt-4">
-                <div className="space-y-2">
-                  <Input
-                    placeholder="https://empresa.com/vaga-exemplo"
-                    value={jobUrl}
-                    onChange={(e) => setJobUrl(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Cole o link da vaga no LinkedIn, Catho, InfoJobs ou site da empresa
-                  </p>
-                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-xs text-amber-800">
-                      <strong>Não conseguimos ler automaticamente?</strong><br/>
-                      Algumas plataformas (como Gupy e Vale) bloqueiam leitura automática. 
-                      Se isso acontecer, você será informado para colar o texto da vaga manualmente.
+                {!forceTextOnly ? (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="https://empresa.com/vaga-exemplo"
+                      value={jobUrl}
+                      onChange={(e) => setJobUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Cole o link da vaga no LinkedIn, Catho, InfoJobs ou site da empresa
+                    </p>
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-xs text-amber-800">
+                        <strong>Não conseguimos ler automaticamente?</strong><br/>
+                        Algumas plataformas (como Gupy e Vale) bloqueiam leitura automática. 
+                        Se isso acontecer, você será informado para colar o texto da vaga manualmente.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+                    <p className="text-sm text-gray-600 text-center">
+                      Opção temporariamente desabilitada.<br/>
+                      Use a aba "Descrição" para colar o texto da vaga.
                     </p>
                   </div>
-                </div>
+                )}
               </TabsContent>
               
               <TabsContent value="text" className="mt-4">
                 <Textarea
-                  placeholder="Cole aqui a descrição completa da vaga..."
+                  placeholder={forceTextOnly 
+                    ? "Cole aqui o texto completo da vaga que não pôde ser lida automaticamente..."
+                    : "Cole aqui a descrição completa da vaga..."
+                  }
                   value={jobText}
                   onChange={(e) => setJobText(e.target.value)}
                   className="min-h-[120px] resize-none"
                 />
+                {forceTextOnly && (
+                  <p className="text-xs text-green-700 mt-2 bg-green-50 p-2 rounded border border-green-200">
+                    ✅ Usando texto da vaga para análise precisa
+                  </p>
+                )}
               </TabsContent>
             </Tabs>
           </div>
