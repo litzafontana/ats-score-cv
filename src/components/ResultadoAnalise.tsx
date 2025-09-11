@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { ScoreProgress } from "@/components/ScoreProgress";
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -36,15 +37,11 @@ export function ResultadoAnalise({ resultado }: ResultadoAnaliseProps) {
     <div className="space-y-6">
       {/* Pontuação Geral */}
       <Card>
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Pontuação ATS</CardTitle>
-        </CardHeader>
-        <CardContent className="text-center">
-          <div className={`text-6xl font-bold mb-4 ${getScoreColor(ats_json.nota_final)}`}>
-            {ats_json.nota_final}
-            <span className="text-2xl text-muted-foreground">/100</span>
-          </div>
-          <Progress value={ats_json.nota_final} className="w-full max-w-md mx-auto" />
+        <CardContent className="p-0">
+          <ScoreProgress 
+            score={ats_json.nota_final} 
+            showPdfDownload={false}
+          />
         </CardContent>
       </Card>
 

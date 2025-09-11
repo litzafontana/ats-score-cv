@@ -252,7 +252,12 @@ export default function Resultado() {
 </CardDescription>
           </CardHeader>
           <CardContent>
-            <ScoreProgress score={diagnostico.nota_ats} />
+            <ScoreProgress 
+              score={diagnostico.nota_ats} 
+              diagnosticoId={diagnostico.id}
+              showPdfDownload={true}
+              isPaid={diagnostico.pago || diagnostico.tipo_analise === 'robusta_gratuita'}
+            />
           </CardContent>
         </Card>
 
