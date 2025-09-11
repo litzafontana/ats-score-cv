@@ -196,7 +196,7 @@ export default function Resultado() {
               <p className="text-sm font-medium text-primary">
                 {diagnostico.analises_restantes > 0 ? (
                   diagnostico.analises_restantes === 1 ? (
-                    "✨ Você ainda tem 1 análise robusta gratuita disponível (de 2 no total)."
+                    "✨ Você ainda tem 1 análise robusta gratuita disponível."
                   ) : (
                     `✨ Você ainda tem ${diagnostico.analises_restantes} análises robustas gratuitas disponíveis.`
                   )
