@@ -29,23 +29,18 @@ export function ResultadoRobustoAnalise({
       return () => clearTimeout(timer);
     }
   }, [resultado.descricao_vaga_invalida]);
-  const getScoreColor = (score: number, maxScore: number) => {
-    const percentage = score / maxScore * 100;
-    if (percentage >= 80) return "text-success";
-    if (percentage >= 60) return "text-warning";
-    return "text-danger";
+  const getScoreColor = (score: number, max: number) => {
+    const ratio = score / max;
+    if (score === 0) return "text-danger";
+    if (ratio < 0.5) return "text-warning";
+    return "text-success";
   };
-  const getScoreVariant = (score: number, maxScore: number): "default" | "secondary" | "destructive" => {
-    const percentage = score / maxScore * 100;
-    if (percentage >= 80) return "default";
-    if (percentage >= 60) return "secondary";
-    return "destructive";
-  };
-  const getProgressColor = (score: number, maxScore: number) => {
-    const percentage = score / maxScore * 100;
-    if (percentage >= 80) return "bg-success";
-    if (percentage >= 60) return "bg-warning";
-    return "bg-danger";
+
+  const getScoreLabel = (score: number, max: number) => {
+    const ratio = score / max;
+    if (score === 0) return "Insuficiente";
+    if (ratio < 0.5) return "Regular";
+    return "Bom";
   };
   const CategoryCard = ({
     title,
@@ -68,14 +63,17 @@ export function ResultadoRobustoAnalise({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Pontuação</span>
-          <Badge variant={getScoreVariant(categoria.pontuacao_local, maxScore)}>
-            {categoria.pontuacao_local}/{maxScore}
-          </Badge>
+          <span className="font-medium">Pontuação:</span>
+          <span className={`font-bold ${getScoreColor(categoria.pontuacao_local, maxScore)}`}>
+            {categoria.pontuacao_local}/{maxScore} ({getScoreLabel(categoria.pontuacao_local, maxScore)})
+          </span>
         </div>
         
-        <div className="relative">
-          <Progress value={categoria.pontuacao_local / maxScore * 100} className="h-2" />
+        <div className="h-2 w-full bg-muted rounded-full">
+          <div
+            className="h-2 bg-primary rounded-full transition-all duration-300"
+            style={{ width: `${(categoria.pontuacao_local / maxScore) * 100}%` }}
+          />
         </div>
 
         {showDetails && <>
