@@ -258,6 +258,36 @@ export default function Resultado() {
               showPdfDownload={true}
               isPaid={diagnostico.pago || diagnostico.tipo_analise === 'robusta_gratuita'}
             />
+
+            {/* Indicadores complementares - Técnica e Aderência */}
+            {diagnostico.json_result_rich?.categorias && (() => {
+              const tecnica = 
+                diagnostico.json_result_rich.categorias.competencias_tecnicas.pontuacao_local +
+                diagnostico.json_result_rich.categorias.formacao_certificacoes.pontuacao_local +
+                diagnostico.json_result_rich.categorias.formatacao_ats.pontuacao_local;
+              
+              const aderencia = 
+                diagnostico.json_result_rich.categorias.experiencia_alinhada.pontuacao_local +
+                diagnostico.json_result_rich.categorias.palavras_chave.pontuacao_local +
+                diagnostico.json_result_rich.categorias.resultados_impacto.pontuacao_local;
+
+              return (
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
+                    <span className="text-muted-foreground font-medium">🔹 Técnica</span>
+                    <span className="font-semibold text-foreground">
+                      {tecnica}/40
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
+                    <span className="text-muted-foreground font-medium">🟢 Aderência</span>
+                    <span className="font-semibold text-foreground">
+                      {aderencia}/60
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
 
