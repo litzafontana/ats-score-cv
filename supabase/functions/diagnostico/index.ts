@@ -27,6 +27,11 @@ interface ResultadoParcial {
   resumo_rapido: string;
   json_result_rich?: any;
 }
+// ===================== HELPER EXTRA =====================
+function estimatePages(cvText: string): number {
+  const words = cvText.trim().split(/\s+/).length;
+  return Math.ceil(words / 600); // ~600 palavras ≈ 1 página
+}
 
 // ===================== HELPERS =====================
 function truncate(str: string, max = 15000): string {
@@ -36,6 +41,37 @@ function truncate(str: string, max = 15000): string {
 
 function isLikelyUrl(s: string) {
   try { const u = new URL(s); return !!u.protocol && !!u.hostname; } catch { return false; }
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+async function scrapeJobPage(src: string): Promise<{ text: string; ok: boolean }> {
+  try {
+    const res = await fetch(Deno.env.get('SUPABASE_URL') + '/functions/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`
+      },
+      body: JSON.stringify({ urlOrText: src })
+    });
+    
+    if (!res.ok) return { text: "", ok: false };
+    
+    const result = await res.json();
+    return { text: result.text || "", ok: result.ok || false };
+  } catch (error) {
+    console.error('Erro no scraping:', error);
+    return { text: "", ok: false };
+  }
 }
 
 function uniq(arr: string[] = []): string[] {
@@ -133,6 +169,13 @@ serve(async (req) => {
       );
     }
 
+    if (cv_content.length < 50 || job_description.length < 50) {
+      return new Response(
+        JSON.stringify({ error: 'CV e descrição da vaga devem ter pelo menos 50 caracteres' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -220,28 +263,43 @@ async function executarAnaliseSimulada(input: DiagnosticInput): Promise<Resultad
   };
 }
 
-// ===================== ANALISE REAL =====================
+// ===================== ANALISE REAL (robusta) =====================
 async function executarAnaliseReal(input: DiagnosticInput): Promise<ResultadoParcial> {
-  const openAIKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIKey) throw new Error('Chave da OpenAI não configurada');
+  console.log('Executando análise real com OpenAI...');
 
+  const openAIKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIKey) {
+    throw new Error('Chave da OpenAI não configurada');
+  }
+
+  // 1) Se job_description for link, tenta extrair texto da página
   let vagaTexto = input.job_description;
   let descricaoVagaInvalida = false;
   if (isLikelyUrl(input.job_description)) {
+    console.log("🔎 Detectado link da vaga. Tentando extrair conteúdo...");
     const { text, ok } = await scrapeJobPage(input.job_description);
-    if (ok && text.length > 200) vagaTexto = text;
-    else descricaoVagaInvalida = true;
+    if (ok && text.length > 200) {
+      vagaTexto = text;
+    } else {
+      descricaoVagaInvalida = true;
+      console.warn("⚠️ Falha ao extrair a vaga por link; seguindo com texto original.");
+    }
   }
 
+  // 2) Sanitiza e limita tamanho
   const cvTxt = truncate(input.cv_content, 20000);
   const vagaTxt = truncate(vagaTexto, 18000);
 
-  const systemMsg = `
-Você é um avaliador ATS especialista em triagem de currículos.
-Responda SEMPRE em JSON válido estrito, sem texto fora do objeto.
-A nota_final deve ser a soma exata das seis categorias.
-Todos os inteiros devem respeitar os limites de cada categoria.
-`;
+  // Estimar número de páginas do CV
+  const estimatedPages = estimatePages(cvTxt);
+
+  // 3) Mensagens e payload com response_format JSON
+  const systemMsg = [
+    "Você é um avaliador ATS especialista em triagem de currículos.",
+    "Responda SEMPRE em JSON válido estrito, sem texto fora do objeto.",
+    "A `nota_final` deve ser a soma exata das seis categorias.",
+    "Todos os inteiros devem respeitar os limites de cada categoria."
+  ].join(" ");
 
   const userPrompt = `
 Você receberá:
@@ -269,17 +327,24 @@ Você receberá:
 - Avaliar clareza estrutural: seções bem definidas.
 - Avaliar legibilidade técnica: texto puro, bullets simples, sem tabelas complexas.
 - Avaliar eficiência de mercado: currículos muito longos (>4 páginas) devem ser penalizados.
-- Evidencias: listar aspectos positivos.
-- Riscos: listar problemas (ex.: "Currículo com 6 páginas").
+- Avaliar qualidade da escrita: se houver erros de português, ortografia ou gramática, incluir em "riscos" algo como "Revisar ortografia e gramática".
+- Evidencias: listar aspectos positivos (ex.: "Currículo em PDF legível", "Uso de bullet points").
+- Riscos: listar problemas que prejudicam ATS ou recrutadores (ex.: "Currículo com 6 páginas", "Erros de português detectados").
 - Se houver riscos relevantes, a nota não pode ser 10/10.
 
-### Critérios específicos para perfil_detectado
-- Extraia somente cargos, ferramentas e domínios que estejam claramente mencionados no CV.
-- Não invente cargos ou funções diferentes do que está escrito.
-- Para "cargos": use exatamente os títulos/funções que aparecem no CV.
-- Para "ferramentas": liste apenas softwares, metodologias ou sistemas citados no CV.
-- Para "dominios": identifique setores ou áreas de atuação explícitas no CV.
-- Se não houver evidências, retorne arrays vazios.
+### CURRICULO_ESTIMADO_PAGINAS: ${estimatedPages}
+
+### Critérios específicos para formatação_ats
+- Avaliar clareza estrutural: seções bem definidas.
+- Avaliar legibilidade técnica: texto puro, bullets simples, sem tabelas complexas.
+- Avaliar eficiência de mercado: se CURRICULO_ESTIMADO_PAGINAS > 4, deve ser penalizado.
+- Nesse caso, adicione em "riscos": "Currículo estimado com ${estimatedPages} páginas — reduza para 2–3".
+- Se houver esse risco, a pontuação de formatacao_ats não pode ser maior que 6/10.
+- Avaliar qualidade da escrita: se houver erros de português, incluir em "riscos": "Revisar ortografia e gramática".
+- Evidencias: listar aspectos positivos.
+- Riscos: listar problemas que prejudicam ATS ou recrutadores.
+- Se houver riscos relevantes, a nota não pode ser 10/10.
+
 
 ---
 
