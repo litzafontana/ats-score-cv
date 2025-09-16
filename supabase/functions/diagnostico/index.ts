@@ -27,11 +27,6 @@ interface ResultadoParcial {
   resumo_rapido: string;
   json_result_rich?: any;
 }
-// ===================== HELPER EXTRA =====================
-function estimatePages(cvText: string): number {
-  const words = cvText.trim().split(/\s+/).length;
-  return Math.ceil(words / 600); // ~600 palavras ≈ 1 página
-}
 
 // ===================== HELPERS =====================
 function truncate(str: string, max = 15000): string {
@@ -263,43 +258,28 @@ async function executarAnaliseSimulada(input: DiagnosticInput): Promise<Resultad
   };
 }
 
-// ===================== ANALISE REAL (robusta) =====================
+// ===================== ANALISE REAL =====================
 async function executarAnaliseReal(input: DiagnosticInput): Promise<ResultadoParcial> {
-  console.log('Executando análise real com OpenAI...');
-
   const openAIKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIKey) {
-    throw new Error('Chave da OpenAI não configurada');
-  }
+  if (!openAIKey) throw new Error('Chave da OpenAI não configurada');
 
-  // 1) Se job_description for link, tenta extrair texto da página
   let vagaTexto = input.job_description;
   let descricaoVagaInvalida = false;
   if (isLikelyUrl(input.job_description)) {
-    console.log("🔎 Detectado link da vaga. Tentando extrair conteúdo...");
     const { text, ok } = await scrapeJobPage(input.job_description);
-    if (ok && text.length > 200) {
-      vagaTexto = text;
-    } else {
-      descricaoVagaInvalida = true;
-      console.warn("⚠️ Falha ao extrair a vaga por link; seguindo com texto original.");
-    }
+    if (ok && text.length > 200) vagaTexto = text;
+    else descricaoVagaInvalida = true;
   }
 
-  // 2) Sanitiza e limita tamanho
   const cvTxt = truncate(input.cv_content, 20000);
   const vagaTxt = truncate(vagaTexto, 18000);
 
-  // Estimar número de páginas do CV
-  const estimatedPages = estimatePages(cvTxt);
-
-  // 3) Mensagens e payload com response_format JSON
-  const systemMsg = [
-    "Você é um avaliador ATS especialista em triagem de currículos.",
-    "Responda SEMPRE em JSON válido estrito, sem texto fora do objeto.",
-    "A `nota_final` deve ser a soma exata das seis categorias.",
-    "Todos os inteiros devem respeitar os limites de cada categoria."
-  ].join(" ");
+  const systemMsg = `
+Você é um avaliador ATS especialista em triagem de currículos.
+Responda SEMPRE em JSON válido estrito, sem texto fora do objeto.
+A nota_final deve ser a soma exata das seis categorias.
+Todos os inteiros devem respeitar os limites de cada categoria.
+`;
 
   const userPrompt = `
 Você receberá:
@@ -327,24 +307,17 @@ Você receberá:
 - Avaliar clareza estrutural: seções bem definidas.
 - Avaliar legibilidade técnica: texto puro, bullets simples, sem tabelas complexas.
 - Avaliar eficiência de mercado: currículos muito longos (>4 páginas) devem ser penalizados.
-- Avaliar qualidade da escrita: se houver erros de português, ortografia ou gramática, incluir em "riscos" algo como "Revisar ortografia e gramática".
-- Evidencias: listar aspectos positivos (ex.: "Currículo em PDF legível", "Uso de bullet points").
-- Riscos: listar problemas que prejudicam ATS ou recrutadores (ex.: "Currículo com 6 páginas", "Erros de português detectados").
-- Se houver riscos relevantes, a nota não pode ser 10/10.
-
-### CURRICULO_ESTIMADO_PAGINAS: ${estimatedPages}
-
-### Critérios específicos para formatação_ats
-- Avaliar clareza estrutural: seções bem definidas.
-- Avaliar legibilidade técnica: texto puro, bullets simples, sem tabelas complexas.
-- Avaliar eficiência de mercado: se CURRICULO_ESTIMADO_PAGINAS > 4, deve ser penalizado.
-- Nesse caso, adicione em "riscos": "Currículo estimado com ${estimatedPages} páginas — reduza para 2–3".
-- Se houver esse risco, a pontuação de formatacao_ats não pode ser maior que 6/10.
-- Avaliar qualidade da escrita: se houver erros de português, incluir em "riscos": "Revisar ortografia e gramática".
 - Evidencias: listar aspectos positivos.
-- Riscos: listar problemas que prejudicam ATS ou recrutadores.
+- Riscos: listar problemas (ex.: "Currículo com 6 páginas").
 - Se houver riscos relevantes, a nota não pode ser 10/10.
 
+### Critérios específicos para perfil_detectado
+- Extraia somente cargos, ferramentas e domínios que estejam claramente mencionados no CV.
+- Não invente cargos ou funções diferentes do que está escrito.
+- Para "cargos": use exatamente os títulos/funções que aparecem no CV.
+- Para "ferramentas": liste apenas softwares, metodologias ou sistemas citados no CV.
+- Para "dominios": identifique setores ou áreas de atuação explícitas no CV.
+- Se não houver evidências, retorne arrays vazios.
 
 ---
 
