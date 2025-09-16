@@ -38,37 +38,6 @@ function isLikelyUrl(s: string) {
   try { const u = new URL(s); return !!u.protocol && !!u.hostname; } catch { return false; }
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
-async function scrapeJobPage(src: string): Promise<{ text: string; ok: boolean }> {
-  try {
-    const res = await fetch(Deno.env.get('SUPABASE_URL') + '/functions/v1/scrape', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`
-      },
-      body: JSON.stringify({ urlOrText: src })
-    });
-    
-    if (!res.ok) return { text: "", ok: false };
-    
-    const result = await res.json();
-    return { text: result.text || "", ok: result.ok || false };
-  } catch (error) {
-    console.error('Erro no scraping:', error);
-    return { text: "", ok: false };
-  }
-}
-
 function uniq(arr: string[] = []): string[] {
   return Array.from(new Set(arr.map(s => (s || "").trim()).filter(Boolean)));
 }
@@ -160,13 +129,6 @@ serve(async (req) => {
     if (!email || !cv_content || !job_description) {
       return new Response(
         JSON.stringify({ error: 'Campos obrigatórios: email, cv_content, job_description' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (cv_content.length < 50 || job_description.length < 50) {
-      return new Response(
-        JSON.stringify({ error: 'CV e descrição da vaga devem ter pelo menos 50 caracteres' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -310,6 +272,14 @@ Você receberá:
 - Evidencias: listar aspectos positivos.
 - Riscos: listar problemas (ex.: "Currículo com 6 páginas").
 - Se houver riscos relevantes, a nota não pode ser 10/10.
+
+### Critérios específicos para perfil_detectado
+- Extraia somente cargos, ferramentas e domínios que estejam claramente mencionados no CV.
+- Não invente cargos ou funções diferentes do que está escrito.
+- Para "cargos": use exatamente os títulos/funções que aparecem no CV.
+- Para "ferramentas": liste apenas softwares, metodologias ou sistemas citados no CV.
+- Para "dominios": identifique setores ou áreas de atuação explícitas no CV.
+- Se não houver evidências, retorne arrays vazios.
 
 ---
 
