@@ -303,12 +303,18 @@ Você receberá:
 - Detecte "perfil_detectado".
 - Se a vaga veio por link e não foi possível extrair, use "descricao_vaga_invalida": true.
 
+CURRICULO_ESTIMADO_PAGINAS: ${estimatedPages}
+
 ### Critérios específicos para formatação_ats
 - Avaliar clareza estrutural: seções bem definidas.
 - Avaliar legibilidade técnica: texto puro, bullets simples, sem tabelas complexas.
-- Avaliar eficiência de mercado: currículos muito longos (>4 páginas) devem ser penalizados.
+- Avaliar eficiência de mercado:
+  - Se CURRICULO_ESTIMADO_PAGINAS > 4 → risco: "Currículo estimado com ${estimatedPages} páginas — reduza para 2–3" e nota máxima 6/10.
+  - Se CURRICULO_ESTIMADO_PAGINAS == 1 → risco leve: "Currículo muito resumido — pode faltar detalhamento de experiências", mas ainda pode ter nota alta (até 9/10).
+  - Se CURRICULO_ESTIMADO_PAGINAS entre 2 e 3 → ideal, sem penalização.
+- Avaliar qualidade da escrita: se houver erros de português, ortografia ou gramática, incluir em "riscos": "Revisar ortografia e gramática".
 - Evidencias: listar aspectos positivos.
-- Riscos: listar problemas (ex.: "Currículo com 6 páginas").
+- Riscos: listar problemas que prejudicam ATS ou recrutadores.
 - Se houver riscos relevantes, a nota não pode ser 10/10.
 
 ### Critérios específicos para perfil_detectado
