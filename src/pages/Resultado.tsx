@@ -256,9 +256,7 @@ export default function Resultado() {
               score={diagnostico.nota_ats} 
               diagnosticoId={diagnostico.id}
               showPdfDownload={true}
-              isPaid={diagnostico.pago}
-              analises_restantes={diagnostico.analises_restantes}
-              onNavigate={navigate}
+              isPaid={diagnostico.pago || diagnostico.tipo_analise === 'robusta_gratuita'}
             />
 
             {/* Indicadores complementares - Técnica e Aderência */}
