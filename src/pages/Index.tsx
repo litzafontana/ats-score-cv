@@ -2,6 +2,7 @@ import { DiagnosticForm } from "@/components/DiagnosticForm";
 import { ScoreProgress } from "@/components/ScoreProgress";
 import ExampleAnalysisModal from "@/components/ExampleAnalysisModal";
 import FAQSection from "@/components/FAQSection";
+import { ATSScoreLogo } from "@/components/ATSScoreLogo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,9 +17,7 @@ const Index = () => {
       <header className="border-b bg-white/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Target className="h-5 w-5 text-white" />
-            </div>
+            <ATSScoreLogo />
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               ATS Score
             </span>
