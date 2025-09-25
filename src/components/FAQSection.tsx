@@ -57,9 +57,12 @@ export default function FAQSection() {
                 />
               </button>
               {openIndex === idx && (
-                <div className="px-4 pb-4 text-sm text-slate-600 border-t animate-fadeIn">
-                  {faq.resposta}
-                </div>
+              <div
+                className="px-4 pb-4 text-sm text-slate-600 border-t animate-fadeIn"
+                style={{ whiteSpace: "pre-line" }}
+               >
+               {faq.resposta}
+             </div>
               )}
             </div>
           ))}
