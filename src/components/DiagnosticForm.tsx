@@ -161,51 +161,52 @@ export function DiagnosticForm() {
     });
   };
   return <Card className="max-w-4xl mx-auto shadow-xl border-0 bg-gradient-to-br from-white to-secondary/30">
-      <CardHeader className="text-center pb-6">
-        <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <CardHeader className="text-center pb-4 sm:pb-6 px-4 sm:px-6">
+        <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
           Análise ATS do seu Currículo
         </CardTitle>
-        <CardDescription className="text-base text-muted-foreground">
-          Descubra em segundos se seu CV está otimizado para sistemas de recrutamento<br />
-          <span className="text-sm font-medium text-primary">
+        <CardDescription className="text-sm sm:text-base text-muted-foreground">
+          Descubra em segundos se seu CV está otimizado para sistemas de recrutamento
+          <br className="hidden sm:block" />
+          <span className="text-xs sm:text-sm font-medium text-primary block mt-1 sm:mt-0">
             ✨ Primeiras 2 análises robustas GRATUITAS com IA
           </span>
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
         <div>
-          <Label htmlFor="email">Email para receber o resultado</Label>
-          <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} className="mt-1" />
+          <Label htmlFor="email" className="text-sm sm:text-base">Email para receber o resultado</Label>
+          <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 min-h-[44px] text-base" />
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
           {/* CV Input */}
-          <div className="space-y-4">
-            <Label className="text-base font-semibold">Seu Currículo</Label>
+          <div className="space-y-3 sm:space-y-4">
+            <Label className="text-sm sm:text-base font-semibold">Seu Currículo</Label>
             <Tabs value={cvInputType} onValueChange={value => setCvInputType(value as "upload" | "text")}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="upload">Upload de arquivo</TabsTrigger>
-                <TabsTrigger value="text">Colar texto</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 h-auto">
+                <TabsTrigger value="upload" className="text-xs sm:text-sm py-2 sm:py-2.5">Upload de arquivo</TabsTrigger>
+                <TabsTrigger value="text" className="text-xs sm:text-sm py-2 sm:py-2.5">Colar texto</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="upload" className="mt-4">
+              <TabsContent value="upload" className="mt-3 sm:mt-4">
                 <UploadArea label="" description="Envie seu CV em PDF, DOC ou DOCX" onFileSelect={setCvFile} accept=".pdf,.doc,.docx" maxSize={5} />
               </TabsContent>
               
-              <TabsContent value="text" className="mt-4">
-                <Textarea placeholder="Cole aqui o texto completo do seu currículo..." value={cvText} onChange={e => setCvText(e.target.value)} className="min-h-[120px] resize-none" />
+              <TabsContent value="text" className="mt-3 sm:mt-4">
+                <Textarea placeholder="Cole aqui o texto completo do seu currículo..." value={cvText} onChange={e => setCvText(e.target.value)} className="min-h-[120px] sm:min-h-[140px] resize-none text-sm sm:text-base" />
               </TabsContent>
             </Tabs>
           </div>
 
           {/* Job Input */}
-          <div className="space-y-4">
-            <Label className="text-base font-semibold">Vaga de Interesse</Label>
+          <div className="space-y-3 sm:space-y-4">
+            <Label className="text-sm sm:text-base font-semibold">Vaga de Interesse</Label>
             
             {/* Aviso de nova tentativa */}
-            {showRetryMessage && <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm font-medium text-red-800 mb-1">
+            {showRetryMessage && <div className="p-2.5 sm:p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-xs sm:text-sm font-medium text-red-800 mb-1">
                   🔄 Nova tentativa necessária
                 </p>
                 <p className="text-xs text-red-700">
@@ -215,31 +216,31 @@ export function DiagnosticForm() {
               </div>}
             
             <Tabs value={jobInputType} onValueChange={value => !forceTextOnly && setJobInputType(value as "url" | "text")}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="text">Descrição</TabsTrigger>
-                <TabsTrigger value="url" disabled={forceTextOnly}>Link da vaga</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 h-auto">
+                <TabsTrigger value="text" className="text-xs sm:text-sm py-2 sm:py-2.5">Descrição</TabsTrigger>
+                <TabsTrigger value="url" disabled={forceTextOnly} className="text-xs sm:text-sm py-2 sm:py-2.5">Link da vaga</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="text" className="mt-4">
-                <Textarea placeholder={forceTextOnly ? "Cole aqui o texto completo da vaga que não pôde ser lida automaticamente..." : "Cole aqui a descrição completa da vaga..."} value={jobText} onChange={e => setJobText(e.target.value)} className="min-h-[120px] resize-none" />
+              <TabsContent value="text" className="mt-3 sm:mt-4">
+                <Textarea placeholder={forceTextOnly ? "Cole aqui o texto completo da vaga que não pôde ser lida automaticamente..." : "Cole aqui a descrição completa da vaga..."} value={jobText} onChange={e => setJobText(e.target.value)} className="min-h-[120px] sm:min-h-[140px] resize-none text-sm sm:text-base" />
                 {forceTextOnly && <p className="text-xs text-green-700 mt-2 bg-green-50 p-2 rounded border border-green-200">
                     ✅ Usando texto da vaga para análise precisa
                   </p>}
               </TabsContent>
               
-              <TabsContent value="url" className="mt-4">
+              <TabsContent value="url" className="mt-3 sm:mt-4">
                 {!forceTextOnly ? <div className="space-y-2">
-                    <Input placeholder="https://empresa.com/vaga-exemplo" value={jobUrl} onChange={e => setJobUrl(e.target.value)} />
+                    <Input placeholder="https://empresa.com/vaga-exemplo" value={jobUrl} onChange={e => setJobUrl(e.target.value)} className="min-h-[44px] text-sm sm:text-base" />
                     <p className="text-xs text-muted-foreground">Cole a descrição ou link da vaga no LinkedIn, Catho, InfoJobs ou site da empresa</p>
-                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="mt-3 p-2.5 sm:p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-xs text-amber-800">
                         <strong>Não conseguimos ler automaticamente?</strong><br />
                         Algumas plataformas (como Gupy e Vale) bloqueiam leitura automática. 
                         Se isso acontecer, você será informado para colar o texto da vaga manualmente.
                       </p>
                     </div>
-                  </div> : <div className="p-4 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
-                    <p className="text-sm text-gray-600 text-center">
+                  </div> : <div className="p-3 sm:p-4 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+                    <p className="text-xs sm:text-sm text-gray-600 text-center">
                       Opção temporariamente desabilitada.<br />
                       Use a aba "Descrição" para colar o texto da vaga.
                     </p>
@@ -249,21 +250,22 @@ export function DiagnosticForm() {
           </div>
         </div>
 
-        <div className="pt-4">
-          <Button onClick={handleAnalyze} disabled={isAnalyzing} variant="hero" size="lg" className="w-full">
+        <div className="pt-2 sm:pt-4">
+          <Button onClick={handleAnalyze} disabled={isAnalyzing} variant="hero" size="lg" className="w-full min-h-[48px] sm:min-h-[52px] text-base">
             {isAnalyzing ? <>
                 <Loader2 className="h-5 w-5 animate-spin" />
-                Analisando seu currículo...
+                <span className="ml-2">Analisando seu currículo...</span>
               </> : <>
                 <Sparkles className="h-5 w-5" />
-                Analisar Gratuitamente
+                <span className="ml-2">Analisar Gratuitamente</span>
               </>}
           </Button>
         </div>
 
-        <p className="text-xs text-muted-foreground text-center leading-relaxed">
-          <strong>Análise gratuita robusta:</strong> Suas primeiras 2 análises incluem IA avançada com recomendações detalhadas.<br />
-          Após isso, análises básicas gratuitas ou upgrade para análise premium completa.
+        <p className="text-xs sm:text-sm text-muted-foreground text-center leading-relaxed px-2">
+          <strong>Análise gratuita robusta:</strong> Suas primeiras 2 análises incluem IA avançada com recomendações detalhadas.
+          <br className="hidden sm:block" />
+          <span className="block sm:inline sm:ml-1">Após isso, análises básicas gratuitas ou upgrade para análise premium completa.</span>
         </p>
 
         {/* Resultado será mostrado na página dedicada */}
