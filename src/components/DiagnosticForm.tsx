@@ -180,7 +180,7 @@ export function DiagnosticForm() {
           <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 min-h-[44px] text-base" />
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* CV Input */}
           <div className="space-y-3 sm:space-y-4">
             <Label className="text-sm sm:text-base font-semibold">Seu Currículo</Label>
