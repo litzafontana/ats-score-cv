@@ -216,9 +216,16 @@ export function DiagnosticForm() {
             
             <Tabs value={jobInputType} onValueChange={value => !forceTextOnly && setJobInputType(value as "url" | "text")}>
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="url" disabled={forceTextOnly}>Link da vaga</TabsTrigger>
                 <TabsTrigger value="text">Descrição</TabsTrigger>
+                <TabsTrigger value="url" disabled={forceTextOnly}>Link da vaga</TabsTrigger>
               </TabsList>
+              
+              <TabsContent value="text" className="mt-4">
+                <Textarea placeholder={forceTextOnly ? "Cole aqui o texto completo da vaga que não pôde ser lida automaticamente..." : "Cole aqui a descrição completa da vaga..."} value={jobText} onChange={e => setJobText(e.target.value)} className="min-h-[120px] resize-none" />
+                {forceTextOnly && <p className="text-xs text-green-700 mt-2 bg-green-50 p-2 rounded border border-green-200">
+                    ✅ Usando texto da vaga para análise precisa
+                  </p>}
+              </TabsContent>
               
               <TabsContent value="url" className="mt-4">
                 {!forceTextOnly ? <div className="space-y-2">
@@ -237,13 +244,6 @@ export function DiagnosticForm() {
                       Use a aba "Descrição" para colar o texto da vaga.
                     </p>
                   </div>}
-              </TabsContent>
-              
-              <TabsContent value="text" className="mt-4">
-                <Textarea placeholder={forceTextOnly ? "Cole aqui o texto completo da vaga que não pôde ser lida automaticamente..." : "Cole aqui a descrição completa da vaga..."} value={jobText} onChange={e => setJobText(e.target.value)} className="min-h-[120px] resize-none" />
-                {forceTextOnly && <p className="text-xs text-green-700 mt-2 bg-green-50 p-2 rounded border border-green-200">
-                    ✅ Usando texto da vaga para análise precisa
-                  </p>}
               </TabsContent>
             </Tabs>
           </div>
