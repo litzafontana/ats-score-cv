@@ -155,7 +155,7 @@ serve(async (req) => {
 
   try {
     const body: DiagnosticInput = await req.json();
-    const { email, cv_content, job_description } = body;
+    let { email, cv_content, job_description } = body;
 
     if (!email || !cv_content || !job_description) {
       return new Response(
@@ -164,12 +164,69 @@ serve(async (req) => {
       );
     }
 
-    if (cv_content.length < 50 || job_description.length < 50) {
+    // ===== NOVO: Processar upload de arquivo =====
+    let cvTextoFinal = '';
+    
+    if (typeof cv_content === 'object' && cv_content.type === 'file') {
+      console.log('📄 Detectado upload de arquivo, iniciando extração...');
+      console.log('   - storage_path:', cv_content.storage_path);
+      console.log('   - mime_type:', cv_content.mime_type);
+      
+      try {
+        // Chamar função de extração
+        const extractRes = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/extract-cv`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify({
+              storage_path: cv_content.storage_path,
+              mime_type: cv_content.mime_type
+            })
+          }
+        );
+
+        if (!extractRes.ok) {
+          const errData = await extractRes.json();
+          console.error('❌ Erro na extração:', errData);
+          throw new Error(errData.error || 'Falha na extração do CV');
+        }
+
+        const { text } = await extractRes.json();
+        cvTextoFinal = text;
+        console.log(`✅ CV extraído: ${cvTextoFinal.length} caracteres`);
+        
+      } catch (extractError: any) {
+        console.error('❌ Erro ao extrair arquivo:', extractError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erro ao processar arquivo enviado',
+            details: extractError.message,
+            hint: 'Tente colar o texto do seu CV manualmente'
+          }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+    } else {
+      // Fluxo antigo: texto direto
+      cvTextoFinal = String(cv_content);
+      console.log('📝 CV recebido como texto:', cvTextoFinal.length, 'caracteres');
+    }
+
+    // Validar tamanho mínimo
+    if (cvTextoFinal.length < 50 || job_description.length < 50) {
       return new Response(
         JSON.stringify({ error: 'CV e descrição da vaga devem ter pelo menos 50 caracteres' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Atualizar cv_content para o restante do fluxo
+    cv_content = cvTextoFinal;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;

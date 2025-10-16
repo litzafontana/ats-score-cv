@@ -55,7 +55,7 @@ export function DiagnosticForm() {
     }
 
     // Prepare CV content
-    let cvContent = '';
+    let cvContent: any = '';
     if (cvInputType === "upload" && !cvFile) {
       toast({
         title: "CV obrigatório",
@@ -72,8 +72,42 @@ export function DiagnosticForm() {
       });
       return;
     }
+    
+    // Upload file to Storage if needed
     if (cvInputType === "upload" && cvFile) {
-      cvContent = `[Arquivo enviado: ${cvFile.name}] - Conteúdo será extraído automaticamente`;
+      toast({
+        title: "Enviando arquivo",
+        description: "Fazendo upload do seu CV..."
+      });
+
+      const fileName = `${Date.now()}-${cvFile.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('cv-uploads')
+        .upload(fileName, cvFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error("❌ Erro no upload:", uploadError);
+        toast({
+          title: "Erro no upload",
+          description: "Não foi possível enviar o arquivo. Tente colar o texto.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log("✅ Arquivo enviado:", uploadData.path);
+      
+      // Preparar payload com metadata do arquivo
+      cvContent = {
+        type: 'file',
+        storage_path: uploadData.path,
+        file_name: cvFile.name,
+        mime_type: cvFile.type,
+        size: cvFile.size
+      };
     } else if (cvInputType === "text" && cvText.trim()) {
       cvContent = cvText.trim();
     }
@@ -120,9 +154,14 @@ export function DiagnosticForm() {
     setIsAnalyzing(true);
     try {
       console.log("🚀 Iniciando análise ATS...");
+      
+      const analysisMessage = typeof cvContent === 'object' && cvContent.type === 'file'
+        ? "Extraindo texto do arquivo e analisando..."
+        : "Processando seu CV e comparando com a vaga...";
+      
       toast({
         title: "Analisando currículo",
-        description: "Processando seu CV e comparando com a vaga..."
+        description: analysisMessage
       });
 
       // Chama a função diagnostico que implementa o controle de limite
