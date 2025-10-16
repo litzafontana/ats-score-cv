@@ -114,28 +114,40 @@ serve(async (req) => {
         
         let extractedPdfText = '';
         try {
-          const pdfjsLib = await import('npm:pdfjs-dist@4.0.379/legacy/build/pdf.mjs');
+          const pdfjsLib = await import('npm:pdfjs-dist@4.8.69/legacy/build/pdf.mjs');
           
-          // Configuração robusta com suporte a CMaps e fontes problemáticas
+          // Configuração otimizada para PDFs do Figma e fontes custom
           const loadingTask = pdfjsLib.getDocument({
             data: uint8Array,
             isEvalSupported: false,
-            disableFontFace: true,
+            disableFontFace: false, // CRÍTICO: Permitir fontes custom (Figma precisa)
             useWorkerFetch: false,
-            useSystemFonts: false, // Forçar uso de fontes padrão
-            verbosity: 0, // Reduzir warnings
-            standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/standard_fonts/',
-            cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/cmaps/',
+            useSystemFonts: true, // Usar fontes do sistema como fallback
+            verbosity: 0,
+            standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/standard_fonts/',
+            cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/cmaps/',
             cMapPacked: true,
-            fontExtraProperties: true, // Melhorar extração com fontes problemáticas
-            pdfBug: false, // Ignorar bugs de fonte
+            fontExtraProperties: true,
+            stopAtErrors: false, // Não parar em erros de fonte
+            maxImageSize: -1, // Processar imagens grandes (Figma usa high-res)
+            ignoreErrors: true, // Ignorar erros de parsing menores
           });
           
           const pdf = await loadingTask.promise;
+          
+          // Detectar se é PDF do Figma
+          const metadata = await pdf.getMetadata();
+          const isFigmaPdf = metadata?.info?.Producer?.includes('Figma');
           console.log('📄 PDF metadata:', {
             numPages: pdf.numPages,
             fingerprint: pdf.fingerprint,
+            producer: metadata?.info?.Producer,
+            isFigma: isFigmaPdf
           });
+          
+          if (isFigmaPdf) {
+            console.log('🎨 Detectado PDF do Figma - usando extração aprimorada');
+          }
 
           const textParts: string[] = [];
           for (let i = 1; i <= pdf.numPages; i++) {
@@ -144,18 +156,45 @@ serve(async (req) => {
             
             console.log(`📄 Página ${i}: ${content.items.length} items de texto`);
             
-            // Extrair com mais robustez: verificar str e chars
+            // Log de estrutura do primeiro item para debugging
+            if (i === 1 && content.items.length > 0) {
+              const sampleItem = content.items[0];
+              console.log('📊 Estrutura do primeiro item:', {
+                hasStr: !!sampleItem.str,
+                hasChars: !!sampleItem.chars,
+                hasText: !!sampleItem.text,
+                hasUnicode: !!sampleItem.unicode,
+                keys: Object.keys(sampleItem).slice(0, 10)
+              });
+            }
+            
+            // Extração aprimorada para PDFs do Figma e outros formatos
             const pageText = content.items
               .map((item: any) => {
-                // Tentar item.str primeiro
-                if (item.str) return item.str;
-                // Fallback: tentar item.chars
-                if (item.chars) return item.chars.map((c: any) => c.str || '').join('');
-                // Fallback final: item.text (algumas versões usam isso)
-                if (item.text) return item.text;
+                // Prioridade 1: item.str (texto direto)
+                if (item.str && typeof item.str === 'string') return item.str;
+                
+                // Prioridade 2: item.chars (array de caracteres - comum em Figma)
+                if (Array.isArray(item.chars)) {
+                  return item.chars
+                    .map((c: any) => {
+                      if (typeof c === 'string') return c;
+                      if (c?.str) return c.str;
+                      if (c?.c) return c.c; // Figma às vezes usa 'c'
+                      return '';
+                    })
+                    .join('');
+                }
+                
+                // Prioridade 3: item.text (fallback)
+                if (item.text && typeof item.text === 'string') return item.text;
+                
+                // Prioridade 4: item.unicode (Figma pode usar isso)
+                if (item.unicode) return String.fromCharCode(item.unicode);
+                
                 return '';
               })
-              .filter((text: string) => text.trim().length > 0)
+              .filter((text: string) => text && text.trim().length > 0)
               .join(' ');
             
             textParts.push(pageText);
@@ -183,10 +222,10 @@ serve(async (req) => {
         if (extractedPdfText.length < 50) {
           console.log('⚠️ Tentando fallback com pdf-parse...');
           try {
-            const pdfParse = (await import('npm:pdf-parse@1.1.1')).default;
+            const pdfParse = (await import('npm:pdf-parse@1.2.0')).default;
             const pdfData = await pdfParse(uint8Array, {
               max: 0, // sem limite de páginas
-              version: 'v2.0.550' // versão específica do pdf.js interno
+              version: 'default' // Usar versão default (mais recente)
             });
             
             // CRÍTICO: Logar o length ANTES da normalização
