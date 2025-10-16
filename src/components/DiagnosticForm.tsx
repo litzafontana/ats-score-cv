@@ -56,7 +56,7 @@ export function DiagnosticForm() {
     }
 
     // ========== PREPARAR CV ==========
-    let cvContent: any = '';
+    let cvPayload: { cv_content?: string; cv_file?: any } = {};
     
     if (cvInputType === "upload") {
       if (!cvFile) {
@@ -110,7 +110,7 @@ export function DiagnosticForm() {
         // ✅ Se conseguiu texto suficiente (≥500 chars sem espaços), usar direto
         if (textWithoutSpaces.length >= 500) {
           console.log('✅ [Browser] Texto extraído com sucesso! Enviando direto como cv_content');
-          cvContent = extractedText;
+          cvPayload = { cv_content: extractedText };
           
           toast({
             title: "Arquivo processado",
@@ -149,13 +149,19 @@ export function DiagnosticForm() {
 
         console.log("✅ Arquivo enviado para backend:", uploadData.path);
         
-        // Preparar payload com metadata do arquivo (backend vai extrair)
-        cvContent = {
-          type: 'file',
-          storage_path: uploadData.path,
-          file_name: cvFile.name,
-          mime_type: cvFile.type,
-          size: cvFile.size
+        // Gerar signed URL para o backend acessar
+        const { data: signedUrlData } = await supabase.storage
+          .from('cv-uploads')
+          .createSignedUrl(uploadData.path, 3600);
+        
+        cvPayload = {
+          cv_file: {
+            name: cvFile.name,
+            size: cvFile.size,
+            mime: cvFile.type || 'application/octet-stream',
+            signed_url: signedUrlData?.signedUrl,
+            storage_path: uploadData.path
+          }
         };
       }
       
@@ -169,7 +175,7 @@ export function DiagnosticForm() {
         });
         return;
       }
-      cvContent = cvText.trim();
+      cvPayload = { cv_content: cvText.trim() };
     }
 
     // Prepare job description
@@ -195,10 +201,8 @@ export function DiagnosticForm() {
     } else if (jobInputType === "text" && jobText.trim()) {
       vagaTexto = jobText.trim();
     }
-    // Validar se há conteúdo do CV (objeto OU string)
-    const hasCvContent = typeof cvContent === 'object' 
-      ? cvContent.type === 'file' 
-      : cvContent.trim().length > 0;
+    // Validar se há conteúdo do CV
+    const hasCvContent = cvPayload.cv_content || cvPayload.cv_file;
 
     if (!vagaTexto.trim() || !hasCvContent) {
       toast({
@@ -208,11 +212,10 @@ export function DiagnosticForm() {
       });
       return;
     }
-    // Para upload, pular validação de tamanho (será validada no backend após extração)
-    // Para texto colado, validar tamanho mínimo
-    const skipSizeValidation = typeof cvContent === 'object' && cvContent.type === 'file';
 
-    if (!skipSizeValidation && (vagaTexto.length < 50 || cvContent.length < 50)) {
+    // Para upload com cv_file, pular validação de tamanho (será validada no backend)
+    // Para texto colado com cv_content, validar tamanho mínimo
+    if (cvPayload.cv_content && (vagaTexto.length < 50 || cvPayload.cv_content.length < 50)) {
       toast({
         title: "Conteúdo insuficiente",
         description: "Vaga e currículo devem ter pelo menos 50 caracteres",
@@ -224,14 +227,17 @@ export function DiagnosticForm() {
     try {
       console.log("🚀 Iniciando análise ATS...");
       
-      const analysisMessage = typeof cvContent === 'object' && cvContent.type === 'file'
-        ? "Extraindo texto do arquivo e analisando..."
+      const analysisMessage = cvPayload.cv_file
+        ? "Extraindo texto do arquivo no servidor..."
         : "Processando seu CV e comparando com a vaga...";
       
       toast({
         title: "Analisando currículo",
         description: analysisMessage
       });
+
+      // Debug log para verificar estrutura do payload
+      console.log("🔍 DEBUG cvPayload:", JSON.stringify(cvPayload, null, 2));
 
       // Chama a função diagnostico que implementa o controle de limite
       const {
@@ -240,7 +246,7 @@ export function DiagnosticForm() {
       } = await supabase.functions.invoke('diagnostico', {
         body: {
           email: email.toLowerCase().trim(),
-          cv_content: cvContent,
+          ...cvPayload,
           job_description: vagaTexto
         }
       });
