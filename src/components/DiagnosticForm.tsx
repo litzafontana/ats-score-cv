@@ -185,7 +185,10 @@ export function DiagnosticForm() {
         }
       });
       if (diagnosticoError) {
-        throw new Error(diagnosticoError.message);
+        // Propagar o erro com contexto completo para tratamento abaixo
+        const error = new Error(diagnosticoError.message);
+        (error as any).context = diagnosticoError.context;
+        throw error;
       }
       console.log("✅ Diagnóstico concluído:", diagnosticoData);
 
@@ -193,15 +196,19 @@ export function DiagnosticForm() {
       window.location.href = `/resultado/${diagnosticoData.id}`;
     } catch (error: any) {
       console.error("❌ Erro na análise:", error);
+      console.log("📊 Error context:", error.context);
       
       // Verificar se é erro de PDF escaneado
+      // O erro pode vir em error.context.body (Supabase error format)
       const errorData = error.context?.body;
-      if (errorData?.suspected_scanned_pdf) {
+      console.log("📋 Error data:", errorData);
+      
+      if (errorData?.suspected_scanned_pdf === true) {
         toast({
-          title: "PDF parece ser escaneado",
-          description: "Seu PDF contém apenas imagens. Por favor, cole o texto do CV no campo de texto.",
+          title: "PDF Escaneado Detectado",
+          description: errorData.hint || "Seu PDF contém apenas imagens. Por favor, cole o texto do CV no campo de texto.",
           variant: "destructive",
-          duration: 8000
+          duration: 10000
         });
         
         // Trocar automaticamente para aba de texto

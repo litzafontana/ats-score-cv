@@ -192,7 +192,18 @@ serve(async (req) => {
         if (!extractRes.ok) {
           const errData = await extractRes.json();
           console.error('❌ Erro na extração:', errData);
-          throw new Error(errData.error || 'Falha na extração do CV');
+          
+          // Propagar erro com todos os campos, especialmente suspected_scanned_pdf
+          return new Response(
+            JSON.stringify({
+              error: errData.error || 'Falha na extração do CV',
+              hint: errData.hint,
+              suspected_scanned_pdf: errData.suspected_scanned_pdf || false,
+              extracted_length: errData.extracted_length,
+              methods_tried: errData.methods_tried
+            }),
+            { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
 
         const { text } = await extractRes.json();
