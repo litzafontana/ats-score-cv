@@ -20,18 +20,12 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    target: 'es2022', // Suporta top-level await necessário para pdfjs-dist
     rollupOptions: {
       output: {
         manualChunks: {
           'pdfjs': ['pdfjs-dist'], // Separar pdfjs em chunk próprio
         },
       },
-    },
-  },
-  optimizeDeps: {
-    esbuildOptions: {
-      target: 'es2022', // Suporta top-level await
     },
   },
 }));

@@ -1,18 +1,21 @@
-// Extração no BROWSER para PDF e DOCX
-// Evita problemas de edge/Deno e fontes problemáticas
+// Extração de texto de PDF no BROWSER, usando pdfjs-dist v4, sem top-level await.
+// Opção B: SEM worker (fallback universal) - roda no main thread
+
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+import type { TextContent } from 'pdfjs-dist/types/src/display/api';
+
+// Força rodar no main thread (sem worker)
+GlobalWorkerOptions.workerPort = null;
 
 export async function extractPdfInBrowser(file: File): Promise<string> {
-  const pdfjsLib = await import('pdfjs-dist');
-  
-  // Configurar worker
-  const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
-
   const ab = await file.arrayBuffer();
-  const loadingTask = pdfjsLib.getDocument({
+
+  // Carrega o PDF com configs que evitam travas no browser
+  const loadingTask = getDocument({
     data: ab,
     isEvalSupported: false,
-    disableFontFace: false, // browser pode lidar melhor com fontes
+    useWorkerFetch: false,
+    disableFontFace: false,
   });
 
   const pdf = await loadingTask.promise;
@@ -24,12 +27,13 @@ export async function extractPdfInBrowser(file: File): Promise<string> {
 
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
+    const content: TextContent = await page.getTextContent();
     
     const txt = content.items
       .map((it: any) => {
         if (it?.str) return it.str;
-        if (it?.chars) return it.chars.map((c: any) => c?.str || '').join('');
+        if (it?.chars) return (it.chars as any[]).map((c: any) => c?.str || '').join('');
+        if (it?.text) return it.text;
         return '';
       })
       .filter(Boolean)
