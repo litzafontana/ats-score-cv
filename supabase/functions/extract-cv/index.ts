@@ -55,56 +55,139 @@ serve(async (req) => {
         const arrayBuffer = await fileData.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
         
-        // Método 1: pdfjs-dist (mais robusto para PDFs complexos)
+        // ========== VALIDAÇÕES ROBUSTAS ==========
+        
+        // 1) Validar Content-Type
+        const contentType = fileData.type || '';
+        console.log('📋 Content-Type recebido:', contentType);
+        
+        // 2) Validar magic bytes (%PDF-)
+        const isPdfValid = (buffer: Uint8Array): boolean => {
+          if (buffer.length < 5) return false;
+          const header = new TextDecoder().decode(buffer.slice(0, 5));
+          return header === '%PDF-';
+        };
+        
+        if (!isPdfValid(uint8Array)) {
+          console.error('❌ Arquivo não é um PDF válido (magic bytes incorretos)');
+          return new Response(
+            JSON.stringify({
+              error: 'Arquivo corrompido ou inválido',
+              hint: 'O arquivo não parece ser um PDF válido. Tente fazer upload novamente.',
+              code: 'INVALID_PDF_HEADER',
+              header_bytes: new TextDecoder().decode(uint8Array.slice(0, 10))
+            }),
+            { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // 3) Validar tamanho mínimo
+        if (uint8Array.length < 1024) {
+          console.error('❌ Arquivo muito pequeno:', uint8Array.length, 'bytes');
+          return new Response(
+            JSON.stringify({
+              error: 'Arquivo muito pequeno',
+              hint: 'O arquivo tem menos de 1KB. Verifique se o upload foi completo.',
+              code: 'FILE_TOO_SMALL'
+            }),
+            { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        console.log('✅ Validações iniciais OK:', {
+          size: uint8Array.length,
+          sizeKB: (uint8Array.length / 1024).toFixed(2),
+          header: new TextDecoder().decode(uint8Array.slice(0, 8)),
+          contentType
+        });
+        
+        // ========== EXTRAÇÃO COM PDFJS-DIST (MELHORADO) ==========
+        
+        // Função para normalizar texto
+        const normalizeText = (text: string): string => {
+          return text
+            .replace(/[^\x20-\x7E\n\r\t\u00A0-\u00FF\u0100-\u017F\u0180-\u024F]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        };
+        
         let extractedPdfText = '';
         try {
           const pdfjsLib = await import('npm:pdfjs-dist@4.0.379/legacy/build/pdf.mjs');
+          
+          // Configuração robusta com suporte a CMaps
           const loadingTask = pdfjsLib.getDocument({
             data: uint8Array,
             isEvalSupported: false,
             disableFontFace: true,
-            useWorkerFetch: false
+            useWorkerFetch: false,
+            useSystemFonts: false,
+            verbosity: 0, // Reduzir warnings
+            standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/standard_fonts/',
           });
+          
           const pdf = await loadingTask.promise;
-          console.log('📄 PDF possui', pdf.numPages, 'páginas');
+          console.log('📄 PDF metadata:', {
+            numPages: pdf.numPages,
+            fingerprint: pdf.fingerprint,
+          });
 
           const textParts: string[] = [];
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const content = await page.getTextContent();
-            const pageText = content.items.map((item: any) => item?.str || '').join(' ');
+            
+            console.log(`📄 Página ${i}: ${content.items.length} items de texto`);
+            
+            // Extrair com mais robustez: verificar str e chars
+            const pageText = content.items
+              .map((item: any) => {
+                if (item.str) return item.str;
+                if (item.chars) return item.chars.map((c: any) => c.str || '').join('');
+                return '';
+              })
+              .filter(text => text.trim().length > 0)
+              .join(' ');
+            
             textParts.push(pageText);
-            if (i <= 3) {
-              console.log(`🧩 Página ${i}: ${pageText.length} caracteres`);
+            console.log(`🧩 Página ${i}: ${pageText.length} caracteres extraídos`);
+            
+            if (i === 1) {
+              console.log(`📝 Preview p1:`, pageText.substring(0, 300));
             }
           }
           
           extractedPdfText = textParts.join('\n');
           console.log('✅ pdfjs-dist extraiu:', extractedPdfText.length, 'caracteres (bruto)');
         } catch (pdfjsError) {
-          console.warn('⚠️ pdfjs-dist falhou:', pdfjsError);
+          console.error('❌ pdfjs-dist falhou:', pdfjsError);
         }
 
-        // Normalizar texto: remover caracteres de controle, múltiplos espaços
-        const normalizeText = (text: string): string => {
-          return text
-            .replace(/[^\x20-\x7E\n\r\t\u00A0-\u00FF\u0100-\u017F\u0180-\u024F]/g, ' ') // Remove caracteres não imprimíveis
-            .replace(/\s+/g, ' ') // Múltiplos espaços -> um espaço
-            .trim();
-        };
-
+        // Normalizar texto extraído
         extractedPdfText = normalizeText(extractedPdfText);
         console.log('📊 Texto normalizado:', extractedPdfText.length, 'caracteres');
-        console.log('📝 Preview:', extractedPdfText.substring(0, 200));
+        console.log('📝 Preview normalizado:', extractedPdfText.substring(0, 300));
 
-        // Fallback: se resultado insuficiente, tentar pdf-parse
+        // ========== FALLBACK COM PDF-PARSE (MELHORADO) ==========
+        
         if (extractedPdfText.length < 50) {
           console.log('⚠️ Tentando fallback com pdf-parse...');
           try {
             const pdfParse = (await import('npm:pdf-parse@1.1.1')).default;
-            const pdfData = await pdfParse(uint8Array);
+            const pdfData = await pdfParse(uint8Array, {
+              max: 0, // sem limite de páginas
+              version: 'v2.0.550' // versão específica
+            });
+            
+            console.log('📊 pdf-parse metadata:', {
+              numpages: pdfData.numpages,
+              info: pdfData.info,
+              textLength: pdfData.text?.length || 0
+            });
+            
             const fallbackText = normalizeText(pdfData.text || '');
             console.log('📊 pdf-parse extraiu:', fallbackText.length, 'caracteres');
+            console.log('📝 Preview pdf-parse:', fallbackText.substring(0, 300));
             
             // Usar o maior resultado
             if (fallbackText.length > extractedPdfText.length) {
@@ -112,11 +195,26 @@ serve(async (req) => {
               console.log('✅ Usando resultado de pdf-parse (maior)');
             }
           } catch (parseError) {
-            console.warn('⚠️ Fallback pdf-parse também falhou:', parseError);
+            console.error('❌ Fallback pdf-parse também falhou:', parseError);
           }
         }
 
         extractedText = extractedPdfText;
+        
+        // ========== LOGGING COMPLETO ==========
+        
+        const wordCount = extractedText.trim().split(/\s+/).length;
+        const charsDensity = (extractedText.length / uint8Array.length * 100).toFixed(2);
+        
+        console.log('🔍 Diagnóstico completo:', {
+          fileSize: uint8Array.length,
+          fileSizeKB: (uint8Array.length / 1024).toFixed(2),
+          extractedLength: extractedText.length,
+          extractedTrimmedLength: extractedText.trim().length,
+          wordCount,
+          charsDensity: charsDensity + '%'
+        });
+        
         console.log('✅ PDF extração final:', extractedText.length, 'caracteres');
         
       } catch (error) {
@@ -191,19 +289,40 @@ serve(async (req) => {
       );
     }
 
-    // Validação básica
+    // ========== VALIDAÇÃO FINAL COM HEURÍSTICA ROBUSTA ==========
+    
     if (!extractedText || extractedText.trim().length < 50) {
-      console.error('❌ Texto extraído insuficiente:', extractedText.length);
+      // Obter tamanho do arquivo para heurística
+      const arrayBuffer = await fileData.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const fileSizeBytes = uint8Array.length;
       
-      const isSuspectedScannedPdf = mime_type === 'application/pdf' && extractedText.length < 200;
+      console.error('❌ Texto extraído insuficiente:', {
+        length: extractedText.length,
+        trimmedLength: extractedText.trim().length,
+        fileSize: fileSizeBytes,
+        fileSizeKB: (fileSizeBytes / 1024).toFixed(2),
+        mimeType: mime_type
+      });
+      
+      // Heurística robusta: só marcar como "escaneado" se:
+      // 1) É PDF válido (passou validação de header)
+      // 2) Tem tamanho razoável (> 100KB) mas extraiu < 200 chars
+      // 3) Ambas as bibliotecas falharam
+      const isSuspectedScannedPdf = 
+        mime_type === 'application/pdf' && 
+        fileSizeBytes > 100000 && // PDF com mais de 100KB
+        extractedText.length < 200;   // mas quase nenhum texto
       
       return new Response(
         JSON.stringify({ 
           error: 'Não foi possível extrair texto suficiente do arquivo',
           hint: isSuspectedScannedPdf 
             ? 'Este PDF parece ser escaneado (somente imagens). Por favor, cole o texto do CV manualmente no campo de texto.' 
-            : 'Verifique se o arquivo não está vazio ou corrompido. Tente colar o texto manualmente.',
+            : 'Não foi possível ler o conteúdo do arquivo. Tente converter para PDF novamente ou cole o texto manualmente.',
           extracted_length: extractedText.length,
+          file_size: fileSizeBytes,
+          file_size_kb: (fileSizeBytes / 1024).toFixed(2),
           suspected_scanned_pdf: isSuspectedScannedPdf,
           methods_tried: mime_type === 'application/pdf' ? ['pdfjs-dist', 'pdf-parse'] : ['mammoth']
         }),
