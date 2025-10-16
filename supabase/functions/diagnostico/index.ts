@@ -271,20 +271,36 @@ async function executarAnaliseReal(input: DiagnosticInput): Promise<ResultadoPar
     else descricaoVagaInvalida = true;
   }
 
-  const cvTxt = truncate(input.cv_content, 20000);
+  // Importar funções de parsing e validação
+  const { parseCV, formatCVForLLM } = await import('./cv-parser.ts');
+  const { validateSemanticConsistency, addInconsistencyAlerts } = await import('./semantic-validator.ts');
+
+  // Parse estruturado do CV
+  console.log('[DIAGNOSTICO] Iniciando parse estruturado do CV...');
+  const cvParsed = parseCV(input.cv_content);
+  const cvFormatado = formatCVForLLM(cvParsed);
+  const cvTxt = truncate(cvFormatado, 20000);
   const vagaTxt = truncate(vagaTexto, 18000);
+  
+  console.log('[DIAGNOSTICO] CV parseado - Seções encontradas:', {
+    experiencias: cvParsed.experiencias.length,
+    habilidades: cvParsed.habilidades.length,
+    formacao: cvParsed.formacao.length,
+    certificacoes: cvParsed.certificacoes.length
+  });
 
   const systemMsg = `
   Você é um avaliador especialista em compatibilidade entre currículos e vagas, com foco em sistemas ATS.
 
-  Sua tarefa é cruzar informações de um CURRÍCULO com uma DESCRIÇÃO_DE_VAGA, avaliando a aderência com base em critérios definidos.
+  Sua tarefa é cruzar informações de um CURRÍCULO (já estruturado em seções) com uma DESCRIÇÃO_DE_VAGA, avaliando a aderência com base em critérios definidos.
 
   Você deve retornar SEMPRE um JSON válido e estrito. Nenhum texto fora do JSON é permitido.
 
   Importante:
   - A nota final deve ser a soma exata das 6 categorias avaliadas.
   - Não ultrapasse os limites definidos por categoria.
-  - Execute validação linha a linha da vaga contra o conteúdo do currículo.
+  - ANTES DE RESPONDER: Valide cada item de 'evidencias' ou 'presentes' contra o CV real. Se não encontrar menção explícita, coloque em 'faltantes' ou 'ausentes'.
+  - NUNCA marque como presente algo que não está explicitamente no currículo.
   `;
 
   const userPrompt = `
@@ -365,58 +381,17 @@ Inclua essas listas na seção `competencias_tecnicas`.
 
 ---
 
-## 🧾 JSON DE SAÍDA OBRIGATÓRIO
-
-```json
-{
-  "nota_final": number,
-  "pontuacoes": {
-    "experiencia_alinhada": {
-      "pontuacao_local": number,
-      "evidencias": string[]
-    },
-    "competencias_tecnicas": {
-      "pontuacao_local": number,
-      "evidencias": string[],
-      "normas_encontradas": string[],
-      "softwares_encontrados": string[],
-      "itens_presentes_no_curriculo": string[],
-      "itens_ausentes_no_curriculo": string[]
-    },
-    "palavras_chave": {
-      "pontuacao_local": number,
-      "evidencias": string[],
-      "palavras_chave_extraidas": string[],
-      "palavras_chave_batidas": string[]
-    },
-    "resultados_impacto": {
-      "pontuacao_local": number,
-      "evidencias": string[]
-    },
-    "formacao_certificacoes": {
-      "pontuacao_local": number,
-      "evidencias": string[]
-    },
-    "formatacao_ats": {
-      "pontuacao_local": number,
-      "evidencias": string[],
-      "riscos": string[]
-    }
-  },
-  "alertas": string[], // 2 a 4 alertas críticos
-  "acoes_prioritarias": string[], // 3 a 5 ações sugeridas
-  "frases_prontas": string[], // 1 a 5 frases para o candidato usar
-  "perfil_detectado": string, // ex: "Engenheira Civil com foco em integridade estrutural"
-  "descricao_vaga_invalida": boolean
-}
-
----
-
 DESCRICAO_DA_VAGA:
 ${vagaTxt}
 
-CURRICULO:
+---
+
+CURRICULO (estruturado):
 ${cvTxt}
+
+---
+
+## 📤 FORMATO DE SAÍDA (JSON estrito)
 
 \`\`\`json
 {
@@ -462,10 +437,19 @@ ${cvTxt}
 
   const data = await r.json();
   const rawJson = data?.choices?.[0]?.message?.content ?? "";
+  console.log('[DIAGNOSTICO] Resposta raw do LLM recebida, tamanho:', rawJson.length);
+  
   const analiseRica = JSON.parse(rawJson);
   if (descricaoVagaInvalida) analiseRica.descricao_vaga_invalida = true;
 
-  const validado = validateAndRepair(analiseRica);
+  // Validação estrutural básica
+  console.log('[DIAGNOSTICO] Aplicando validateAndRepair...');
+  let validado = validateAndRepair(analiseRica);
+
+  // Validação semântica (nova)
+  console.log('[DIAGNOSTICO] Aplicando validação semântica...');
+  validado = validateSemanticConsistency(validado, input.cv_content);
+  validado = addInconsistencyAlerts(validado);
   const alertasLegacy = (validado.alertas || []).slice(0, 2).map((a: string) => ({
     tipo: "critico",
     titulo: "Ponto de Melhoria Identificado",
