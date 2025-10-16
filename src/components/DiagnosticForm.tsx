@@ -129,15 +129,29 @@ export function DiagnosticForm() {
           description: "Processando no servidor..."
         });
 
-        const fileName = `${Date.now()}-${cvFile.name}`;
+        // Sanitizar nome do arquivo para evitar espaços/acentos que quebram a signed URL
+        const sanitize = (name: string) => {
+          const parts = name.split('.');
+          const ext = parts.length > 1 ? '.' + parts.pop() : '';
+          const base = parts.join('.')
+            .normalize('NFKD')
+            .replace(/\p{Diacritic}/gu, '')
+            .replace(/[^a-zA-Z0-9-_\.]+/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '')
+            .toLowerCase();
+          return `${base}${ext}` || `arquivo${ext}`;
+        };
+
+        const safeName = `${Date.now()}-${sanitize(cvFile.name)}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('cv-uploads')
-          .upload(fileName, cvFile, {
+          .upload(safeName, cvFile, {
             cacheControl: '3600',
             upsert: false
           });
 
-        if (uploadError) {
+        if (uploadError || !uploadData?.path) {
           console.error("❌ Erro no upload:", uploadError);
           toast({
             title: "Erro no upload",
@@ -148,18 +162,33 @@ export function DiagnosticForm() {
         }
 
         console.log("✅ Arquivo enviado para backend:", uploadData.path);
-        
-        // Gerar signed URL para o backend acessar
-        const { data: signedUrlData } = await supabase.storage
-          .from('cv-uploads')
-          .createSignedUrl(uploadData.path, 3600);
+
+        // Gerar signed URL com retries (propagação do storage pode demorar alguns ms)
+        let signedUrl: string | undefined;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const { data: signed } = await supabase.storage
+            .from('cv-uploads')
+            .createSignedUrl(uploadData.path, 3600);
+          if (signed?.signedUrl) { signedUrl = signed.signedUrl; break; }
+          await new Promise(r => setTimeout(r, 300));
+        }
+
+        if (!signedUrl) {
+          console.error('❌ Falha ao gerar signed URL para', uploadData.path);
+          toast({
+            title: 'Falha ao gerar link temporário',
+            description: 'Reenvie o arquivo ou cole o texto do seu CV.',
+            variant: 'destructive'
+          });
+          return;
+        }
         
         cvPayload = {
           cv_file: {
             name: cvFile.name,
             size: cvFile.size,
             mime: cvFile.type || 'application/octet-stream',
-            signed_url: signedUrlData?.signedUrl,
+            signed_url: signedUrl,
             storage_path: uploadData.path
           }
         };

@@ -6,6 +6,8 @@ import type { TextContent } from 'pdfjs-dist/types/src/display/api';
 
 // Força rodar no main thread (sem worker)
 GlobalWorkerOptions.workerPort = null;
+// Definir workerSrc explicitamente para evitar erro "No GlobalWorkerOptions.workerSrc specified"
+GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
 
 export async function extractPdfInBrowser(file: File): Promise<string> {
   const ab = await file.arrayBuffer();
