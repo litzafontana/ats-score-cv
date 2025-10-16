@@ -78,25 +78,27 @@ export function DiagnosticForm() {
         return;
       }
 
-      // 🔥 NOVO: TENTAR EXTRAIR NO BROWSER PRIMEIRO
+      // 🔥 NOVO: TENTAR EXTRAIR NO BROWSER PRIMEIRO (apenas PDF)
       try {
         console.log('🚀 [Browser] Tentando extrair texto localmente...');
         
-        toast({
-          title: "Processando arquivo",
-          description: "Extraindo texto do seu CV..."
-        });
-
         let extractedText = '';
         
         if (isPdf(cvFile)) {
           console.log('📄 [Browser] Detectado PDF, usando pdfjs-dist no browser');
+          
+          toast({
+            title: "Processando PDF",
+            description: "Extraindo texto do seu CV..."
+          });
+          
           extractedText = await extractPdfInBrowser(cvFile);
         } else if (isDocx(cvFile)) {
-          console.log('📄 [Browser] Detectado DOCX, usando mammoth no browser');
-          extractedText = await extractDocxInBrowser(cvFile);
+          // DOCX: cair direto no backend parser (tem mammoth instalado)
+          console.log('📄 [Browser] DOCX detectado, usando backend parser');
+          throw new Error('DOCX will use backend parser');
         } else {
-          throw new Error('Formato não suportado para extração no browser');
+          throw new Error('Formato não suportado');
         }
 
         const textWithoutSpaces = extractedText.replace(/\s+/g, '');

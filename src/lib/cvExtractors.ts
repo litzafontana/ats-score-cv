@@ -49,18 +49,9 @@ export async function extractPdfInBrowser(file: File): Promise<string> {
 }
 
 export async function extractDocxInBrowser(file: File): Promise<string> {
-  // Importar mammoth dinamicamente
-  const mammoth = (await import('mammoth')).default;
-  const ab = await file.arrayBuffer();
-  
-  console.log('📄 [Browser] Extraindo DOCX...');
-  
-  const result = await mammoth.extractRawText({ arrayBuffer: ab });
-  const normalized = normalize(result.value);
-  
-  console.log('✅ [Browser] DOCX extraído:', normalized.length, 'caracteres');
-  
-  return normalized;
+  // DOCX não tem parser puro JS confiável sem dependências nativas
+  // Retornar erro para cair no backend parser
+  throw new Error('DOCX extraction not supported in browser - will use backend parser');
 }
 
 function normalize(t: string): string {
