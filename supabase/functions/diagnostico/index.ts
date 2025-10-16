@@ -334,15 +334,15 @@ async function executarAnaliseReal(input: DiagnosticInput): Promise<ResultadoPar
   - **Valide cada tecnologia, norma técnica, software ou processo citado na vaga.**
   - Considere como “presente” qualquer menção explícita no currículo.
   - Gere:
-  - `normas_encontradas`: lista de normas da vaga que estão no currículo
-  - `softwares_encontrados`: softwares da vaga identificados no currículo
+  - 'normas_encontradas': lista de normas da vaga que estão no currículo
+  - 'softwares_encontrados': softwares da vaga identificados no currículo
 
 ### 3. palavras_chave (0–15)
 - Extraia 10–20 palavras-chave da vaga (ex: competências, termos técnicos, comportamentais).
 - Compare com o currículo e conte quantas estão presentes.
 - Gere:
-  - `palavras_chave_extraidas`: da vaga
-  - `palavras_chave_batidas`: encontradas no currículo
+  - 'palavras_chave_extraidas': da vaga
+  - 'palavras_chave_batidas': encontradas no currículo
 
 ### 4. resultados_impacto (0–10)
 - Avalie presença de resultados, impactos, indicadores (ex: redução de falhas, aumento de disponibilidade, otimização de custos, projetos críticos etc.).
@@ -358,8 +358,8 @@ async function executarAnaliseReal(input: DiagnosticInput): Promise<ResultadoPar
 - Avalie a estrutura: seções visíveis, legibilidade (sem tabelas), bullets simples.
 - Penalize se o currículo tiver mais de 4 páginas.
 - Gere:
-  - `evidencias`: pontos positivos
-  - `riscos`: problemas encontrados (ex: "Currículo com 5 páginas", "Texto com imagens complexas")
+  - 'evidencias': pontos positivos
+  - 'riscos': problemas encontrados (ex: "Currículo com 5 páginas", "Texto com imagens complexas")
 
 > ⚠️ Se houver riscos relevantes, a nota não pode ser 10/10.
 
@@ -372,12 +372,12 @@ Antes de pontuar, execute obrigatoriamente:
 1. Leia linha por linha a descrição da vaga.
 2. Para cada item citado (norma, software, certificado, ferramenta), verifique se aparece no currículo.
 3. Crie duas listas:
-   - `itens_presentes_no_curriculo`
-   - `itens_ausentes_no_curriculo`
+   - 'itens_presentes_no_curriculo'
+   - 'itens_ausentes_no_curriculo'
 
 > Exemplo: Se “SAP PM” está em contato ou experiência, deve ser marcado como presente.
 
-Inclua essas listas na seção `competencias_tecnicas`.
+Inclua essas listas na seção 'competencias_tecnicas'.
 
 ---
 
