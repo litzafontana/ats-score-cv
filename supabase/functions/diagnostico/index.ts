@@ -11,7 +11,14 @@ const corsHeaders = {
 // ===================== TYPES =====================
 interface DiagnosticInput {
   email: string;
-  cv_content: string;
+  cv_content?: string;  // Opcional - texto direto (colado ou extraído no browser)
+  cv_file?: {           // Opcional - arquivo via signed URL (fallback)
+    name: string;
+    size: number;
+    mime: string;
+    signed_url: string;
+    storage_path?: string;
+  };
   job_description: string; // pode ser texto OU URL
 }
 
@@ -154,26 +161,73 @@ serve(async (req) => {
   }
 
   try {
-    const body: DiagnosticInput = await req.json();
-    let { email, cv_content, job_description } = body;
+    const payload = await req.json();
 
-    if (!email || !cv_content || !job_description) {
+    // DEBUG obrigatório
+    console.log("🔍 [DIAGNOSTICO] Payload recebido:", {
+      email: payload.email,
+      has_cv_content: Boolean(payload.cv_content),
+      cv_content_type: typeof payload.cv_content,
+      cv_content_length: typeof payload.cv_content === 'string' ? payload.cv_content.length : 0,
+      has_cv_file: Boolean(payload.cv_file),
+      cv_file_keys: payload.cv_file ? Object.keys(payload.cv_file) : []
+    });
+
+    // ✅ FAIL-FAST: cv_content deve ser string se existir
+    if (payload.cv_content !== undefined && typeof payload.cv_content !== "string") {
+      return new Response(JSON.stringify({
+        error: "cv_content inválido (deve ser string). Use cv_file para enviar arquivo.",
+        code: "INVALID_CV_CONTENT_TYPE",
+        got_type: typeof payload.cv_content
+      }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    const { email, job_description } = payload;
+
+    if (!email || !job_description) {
       return new Response(
-        JSON.stringify({ error: 'Campos obrigatórios: email, cv_content, job_description' }),
+        JSON.stringify({ error: 'Campos obrigatórios: email, job_description' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // ===== NOVO: Processar upload de arquivo =====
-    let cvTextoFinal = '';
-    
-    if (typeof cv_content === 'object' && cv_content.type === 'file') {
-      console.log('📄 Detectado upload de arquivo, iniciando extração...');
-      console.log('   - storage_path:', cv_content.storage_path);
-      console.log('   - mime_type:', cv_content.mime_type);
+    // ✅ PRECEDÊNCIA: usar texto se veio pronto
+    let cvText: string | null = null;
+
+    if (typeof payload.cv_content === "string" && payload.cv_content.trim().length > 0) {
+      // Cenário 1: cv_content como string (texto colado OU extraído no browser)
+      cvText = payload.cv_content.trim();
+      console.log('📝 CV recebido como texto:', cvText.length, 'caracteres');
+      
+    } else if (payload.cv_file?.signed_url) {
+      // Cenário 2: cv_file com signed_url (fallback do browser)
+      console.log('📄 Detectado cv_file, baixando do storage...');
+      console.log('   - signed_url:', payload.cv_file.signed_url);
+      console.log('   - mime:', payload.cv_file.mime);
       
       try {
-        // Chamar função de extração
+        // Baixar arquivo do storage via signed URL
+        const fileRes = await fetch(payload.cv_file.signed_url);
+        
+        if (!fileRes.ok) {
+          return new Response(JSON.stringify({
+            error: 'Falha ao baixar arquivo do storage',
+            code: 'DOWNLOAD_FAILED',
+            hint: 'O link pode ter expirado. Reenvie o arquivo ou cole o texto.',
+            status: fileRes.status
+          }), { 
+            status: 422, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          });
+        }
+        
+        const fileBlob = await fileRes.blob();
+        const fileBuffer = await fileBlob.arrayBuffer();
+        
+        // Chamar extract-cv com storage_path (mantém compatibilidade)
         const extractRes = await fetch(
           `${Deno.env.get('SUPABASE_URL')}/functions/v1/extract-cv`,
           {
@@ -183,8 +237,8 @@ serve(async (req) => {
               'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
             },
             body: JSON.stringify({
-              storage_path: cv_content.storage_path,
-              mime_type: cv_content.mime_type
+              storage_path: payload.cv_file.storage_path,
+              mime_type: payload.cv_file.mime
             })
           }
         );
@@ -193,55 +247,62 @@ serve(async (req) => {
           const errData = await extractRes.json();
           console.error('❌ Erro na extração:', errData);
           
-          // Propagar erro com todos os campos, especialmente suspected_scanned_pdf e code
-          return new Response(
-            JSON.stringify({
-              error: errData.error || 'Falha na extração do CV',
-              hint: errData.hint,
-              suspected_scanned_pdf: Boolean(errData.suspected_scanned_pdf),
-              extracted_length: errData.extracted_length,
-              methods_tried: errData.methods_tried,
-              code: errData.code,
-              file_size: errData.file_size,
-              file_size_kb: errData.file_size_kb,
-              raw_pdfparse_text_length: errData.raw_pdfparse_text_length
-            }),
-            { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return new Response(JSON.stringify({
+            error: errData.error || 'Falha na extração do CV',
+            hint: errData.hint,
+            suspected_scanned_pdf: Boolean(errData.suspected_scanned_pdf),
+            code: errData.code,
+            ...errData
+          }), { 
+            status: 422, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          });
         }
 
         const { text } = await extractRes.json();
-        cvTextoFinal = text;
-        console.log(`✅ CV extraído: ${cvTextoFinal.length} caracteres`);
+        cvText = text;
+        console.log(`✅ CV extraído do arquivo: ${cvText.length} caracteres`);
         
       } catch (extractError: any) {
-        console.error('❌ Erro ao extrair arquivo:', extractError);
-        return new Response(
-          JSON.stringify({ 
-            error: 'Erro ao processar arquivo enviado',
-            details: extractError.message,
-            hint: 'Tente colar o texto do seu CV manualmente'
-          }),
-          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.error('❌ Erro ao processar arquivo:', extractError);
+        return new Response(JSON.stringify({ 
+          error: 'Erro ao processar arquivo enviado',
+          code: 'FILE_PROCESSING_ERROR',
+          details: extractError.message,
+          hint: 'Tente colar o texto do seu CV manualmente'
+        }), { 
+          status: 422, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
       }
-      
-    } else {
-      // Fluxo antigo: texto direto
-      cvTextoFinal = String(cv_content);
-      console.log('📝 CV recebido como texto:', cvTextoFinal.length, 'caracteres');
     }
 
-    // Validar tamanho mínimo
-    if (cvTextoFinal.length < 50 || job_description.length < 50) {
-      return new Response(
-        JSON.stringify({ error: 'CV e descrição da vaga devem ter pelo menos 50 caracteres' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // ✅ VALIDAÇÃO: deve ter texto suficiente
+    if (!cvText || cvText.replace(/\s+/g, "").length < 200) {
+      return new Response(JSON.stringify({
+        error: "Texto do CV insuficiente para análise",
+        code: "CV_TEXT_TOO_SHORT",
+        hint: "O CV deve ter pelo menos 200 caracteres úteis. Cole o texto completo do seu currículo.",
+        extracted_length: cvText?.length || 0
+      }), { 
+        status: 422, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
-    // Atualizar cv_content para o restante do fluxo
-    cv_content = cvTextoFinal;
+    // Validação da vaga
+    if (!job_description || job_description.trim().length < 50) {
+      return new Response(JSON.stringify({
+        error: "Descrição da vaga muito curta",
+        code: "JOB_DESCRIPTION_TOO_SHORT"
+      }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // Preparar para o restante do fluxo
+    const cv_content = cvText;  // ✅ Garantido como string
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -267,12 +328,20 @@ serve(async (req) => {
     let resultadoParcial: ResultadoParcial;
 
     if (podeAnaliseGratuita) {
-      resultadoParcial = await executarAnaliseReal({ email, cv_content, job_description });
+      resultadoParcial = await executarAnaliseReal({ 
+        email, 
+        cv_content,  // já é string aqui
+        job_description 
+      });
       await supabase.from('usuarios_gratuitos')
         .update({ analises_realizadas: usuarioGratuito.analises_realizadas + 1 })
         .eq('id', usuarioGratuito.id);
     } else {
-      resultadoParcial = await executarAnaliseSimulada({ email, cv_content, job_description });
+      resultadoParcial = await executarAnaliseSimulada({ 
+        email, 
+        cv_content, 
+        job_description 
+      });
     }
 
     const { data: diagnostico } = await supabase
