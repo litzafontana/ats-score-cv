@@ -379,6 +379,18 @@ Antes de pontuar, execute obrigatoriamente:
 
 Inclua essas listas na seção 'competencias_tecnicas'.
 
+## 📋 EQUIVALÊNCIAS EXPLÍCITAS
+
+Considere sempre estas equivalências ao analisar:
+- Pacote Office: considere presente se houver Excel, Word, PowerPoint ou Outlook mencionados
+- Canteiro de obras: considere presente se houver execução de obras ou construção civil
+- Subestação: inclui variações como subestações e substation
+- Climatização: inclui HVAC e ar condicionado
+- Manutenção: inclui maintenance
+- Orçamento, cronograma, gestão, equipe, qualidade, processos, serviços, contratos, energia, água, materiais: considere variações comuns, singular e plural, e termos relacionados (ex: gestão de equipe = gerenciamento de time)
+
+Em caso de dúvida, NÃO marque como presente. Seja rigoroso na validação inicial.
+
 ---
 
 DESCRICAO_DA_VAGA:

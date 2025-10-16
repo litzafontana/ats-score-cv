@@ -6,11 +6,34 @@
 const EQUIVALENCES: Record<string, string[]> = {
   "pacote office": ["excel", "word", "powerpoint", "office 365", "ms office", "microsoft office", "outlook"],
   "autocad": ["autocad", "auto cad"],
-  "canteiro de obras": ["execucao de obras", "execucao obras", "obra civil", "obra industrial", "canteiro", "construcao civil", "construção civil"],
+  "canteiro de obras": ["execucao de obras", "execucao obras", "obra civil", "obra industrial", "canteiro", "construcao civil", "construção civil", "execução de obras"],
   "subestacao": ["subestacao", "subestacoes", "substation", "subestações"],
   "manutencao": ["manutencao", "maintenance", "manutenção"],
   "climatizacao": ["climatizacao", "hvac", "ar condicionado", "climatização"],
+  "orcamento": ["orcamento", "orçamento", "orçamentos", "budget", "planejamento orcamentario", "previsao orcamentaria", "gestao orcamentaria"],
+  "cronograma": ["cronograma", "cronogramas", "schedule", "programacao", "programação", "planning"],
+  "gestao": ["gestao", "gestão", "gerenciamento", "management", "administracao", "administração", "gestão de", "gerenciar"],
+  "equipe": ["equipe", "equipes", "team", "times", "time", "colaboradores"],
+  "qualidade": ["qualidade", "quality", "qualidade e excelencia", "excelencia operacional", "excelência"],
+  "processos": ["processo", "processos", "gestao de processos", "bpm", "procedimentos"],
+  "servicos": ["servicos", "serviços", "terceirizados", "terceirização", "prestadores"],
+  "contratos": ["contrato", "contratos", "gestao de contratos", "acordos"],
+  "energia": ["energia", "eletrica", "elétrica", "energia eletrica", "energia elétrica"],
+  "agua": ["agua", "água", "hidraulica", "hidráulica", "sistemas hidraulicos"],
+  "materiais": ["materiais", "gestao de materiais", "suprimentos", "insumos"],
 };
+
+/**
+ * Stopwords comuns em português para ignorar em matching parcial
+ */
+const STOPWORDS = new Set([
+  "de", "do", "da", "das", "dos", "em", "no", "na", "nas", "nos",
+  "e", "ou", "com", "para", "por", "um", "uma", "uns", "umas",
+  "ao", "aos", "as", "a", "entre", "sobre", "pelo", "pela", "pelos", "pelas",
+  "conhecimento", "conhecimentos", "dominio", "domínio",
+  "experiencia", "experiência", "operacao", "operação",
+  "sistemas", "sistema", "montagem"
+]);
 
 /**
  * Normaliza texto para comparação (remove acentos, lowcase, etc)
@@ -40,9 +63,18 @@ function isTermPresent(term: string, text: string): boolean {
   // Busca por palavras individuais (para termos compostos)
   const termWords = normalizedTerm.split(/\s+/).filter(w => w.length > 2);
   if (termWords.length > 1) {
-    const foundWords = termWords.filter(word => normalizedText.includes(word));
-    // Considera presente se encontrou pelo menos 70% das palavras
-    return foundWords.length / termWords.length >= 0.7;
+    // Remove stopwords para matching mais inteligente
+    const significantWords = termWords.filter(w => !STOPWORDS.has(w));
+    const foundWords = significantWords.filter(word => normalizedText.includes(word));
+    
+    // Considera presente se encontrou pelo menos 60% das palavras significativas
+    if (significantWords.length > 0) {
+      const ratio = foundWords.length / significantWords.length;
+      if (ratio >= 0.6) return true;
+      
+      // OU se pelo menos uma palavra significativa longa (>=4 chars) está presente
+      if (foundWords.some(w => w.length >= 4)) return true;
+    }
   }
 
   return false;
@@ -60,12 +92,21 @@ function isTermOrEquivalentPresent(term: string, text: string): { found: boolean
     return { found: true, matchedTerm: term };
   }
 
-  // Busca por equivalências
+  // Busca por equivalências - permite matching "term contains canonical" ou vice-versa
   for (const [canonical, equivalents] of Object.entries(EQUIVALENCES)) {
     const normalizedCanonical = normalizeText(canonical);
     
-    // Se o termo buscado é o canônico ou está nos equivalentes
-    if (normalizedTerm === normalizedCanonical || equivalents.some(eq => normalizeText(eq) === normalizedTerm)) {
+    // Se o termo buscado contém o canônico, ou o canônico contém o termo, ou está nos equivalentes
+    const isRelatedTerm = 
+      normalizedTerm === normalizedCanonical ||
+      normalizedTerm.includes(normalizedCanonical) ||
+      normalizedCanonical.includes(normalizedTerm) ||
+      equivalents.some(eq => {
+        const normEq = normalizeText(eq);
+        return normEq === normalizedTerm || normEq.includes(normalizedTerm) || normalizedTerm.includes(normEq);
+      });
+    
+    if (isRelatedTerm) {
       // Verifica se o canônico ou qualquer equivalente está no texto
       if (isTermPresent(canonical, text)) {
         return { found: true, matchedTerm: canonical };
@@ -174,7 +215,10 @@ export function validateSemanticConsistency(
   }
 
   // 2. Validar palavras-chave presentes
-  if (palavrasChave.presentes && palavrasChave.ausentes) {
+  if (palavrasChave.presentes || palavrasChave.ausentes) {
+    // Garantir que arrays existam
+    palavrasChave.presentes = palavrasChave.presentes || [];
+    palavrasChave.ausentes = palavrasChave.ausentes || [];
     const presentesValidadas: string[] = [];
     const ausentesCorrigidos: string[] = [...palavrasChave.ausentes];
 
