@@ -135,7 +135,12 @@ export function DiagnosticForm() {
     } else if (jobInputType === "text" && jobText.trim()) {
       vagaTexto = jobText.trim();
     }
-    if (!vagaTexto.trim() || !cvContent.trim()) {
+    // Validar se há conteúdo do CV (objeto OU string)
+    const hasCvContent = typeof cvContent === 'object' 
+      ? cvContent.type === 'file' 
+      : cvContent.trim().length > 0;
+
+    if (!vagaTexto.trim() || !hasCvContent) {
       toast({
         title: "Campos obrigatórios",
         description: "Preencha a vaga e o currículo para continuar",
@@ -143,7 +148,11 @@ export function DiagnosticForm() {
       });
       return;
     }
-    if (vagaTexto.length < 50 || cvContent.length < 50) {
+    // Para upload, pular validação de tamanho (será validada no backend após extração)
+    // Para texto colado, validar tamanho mínimo
+    const skipSizeValidation = typeof cvContent === 'object' && cvContent.type === 'file';
+
+    if (!skipSizeValidation && (vagaTexto.length < 50 || cvContent.length < 50)) {
       toast({
         title: "Conteúdo insuficiente",
         description: "Vaga e currículo devem ter pelo menos 50 caracteres",
