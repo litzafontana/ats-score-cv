@@ -125,6 +125,8 @@ serve(async (req) => {
             useSystemFonts: false, // Forçar uso de fontes padrão
             verbosity: 0, // Reduzir warnings
             standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/standard_fonts/',
+            cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/cmaps/',
+            cMapPacked: true,
             fontExtraProperties: true, // Melhorar extração com fontes problemáticas
             pdfBug: false, // Ignorar bugs de fonte
           });
@@ -138,23 +140,23 @@ serve(async (req) => {
           const textParts: string[] = [];
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
+            const content = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
             
             console.log(`📄 Página ${i}: ${content.items.length} items de texto`);
             
             // Extrair com mais robustez: verificar str e chars
-      const pageText = content.items
-        .map((item: any) => {
-          // Tentar item.str primeiro
-          if (item.str) return item.str;
-          // Fallback: tentar item.chars
-          if (item.chars) return item.chars.map((c: any) => c.str || '').join('');
-          // Fallback final: item.text (algumas versões usam isso)
-          if (item.text) return item.text;
-          return '';
-        })
-        .filter(text => text.trim().length > 0)
-        .join(' ');
+            const pageText = content.items
+              .map((item: any) => {
+                // Tentar item.str primeiro
+                if (item.str) return item.str;
+                // Fallback: tentar item.chars
+                if (item.chars) return item.chars.map((c: any) => c.str || '').join('');
+                // Fallback final: item.text (algumas versões usam isso)
+                if (item.text) return item.text;
+                return '';
+              })
+              .filter((text: string) => text.trim().length > 0)
+              .join(' ');
             
             textParts.push(pageText);
             console.log(`🧩 Página ${i}: ${pageText.length} caracteres extraídos`);
@@ -177,6 +179,7 @@ serve(async (req) => {
 
         // ========== FALLBACK COM PDF-PARSE (MELHORADO) ==========
         
+        let pdfParseRawTextLength = 0;
         if (extractedPdfText.length < 50) {
           console.log('⚠️ Tentando fallback com pdf-parse...');
           try {
@@ -187,11 +190,11 @@ serve(async (req) => {
             });
             
             // CRÍTICO: Logar o length ANTES da normalização
-            const rawTextLength = pdfData.text?.length || 0;
+            pdfParseRawTextLength = pdfData.text?.length || 0;
             console.log('📊 pdf-parse metadata:', {
               numpages: pdfData.numpages,
               info: pdfData.info,
-              textLength: rawTextLength // Antes da normalização
+              textLength: pdfParseRawTextLength // Antes da normalização
             });
             
             console.log('📝 Preview pdf-parse (bruto):', (pdfData.text || '').substring(0, 300));
@@ -210,6 +213,9 @@ serve(async (req) => {
             console.error('❌ Fallback pdf-parse também falhou:', parseError);
           }
         }
+
+        // Guardar para heurística final
+        (globalThis as any).__pdfParseRawTextLength = pdfParseRawTextLength;
 
         extractedText = extractedPdfText;
         
@@ -305,6 +311,7 @@ serve(async (req) => {
     
     const trimmedText = (extractedText || '').trim();
     const textWithoutSpaces = trimmedText.replace(/\s+/g, '');
+    const rawPdfParseLen = (globalThis as any).__pdfParseRawTextLength || 0;
     
     if (!extractedText || trimmedText.length < 50) {
       // Obter tamanho do arquivo para heurística
@@ -318,38 +325,33 @@ serve(async (req) => {
         extractedLength: extractedText.length,
         extractedTrimmedLength: trimmedText.length,
         textWithoutSpaces: textWithoutSpaces.length,
+        rawPdfParseLen,
         wordCount: trimmedText.split(/\s+/).length,
         charsDensity: (extractedText.length / fileSizeBytes * 100).toFixed(2) + '%'
       });
       
-      console.error('❌ Texto extraído insuficiente:', {
-        length: extractedText.length,
-        trimmedLength: trimmedText.length,
-        fileSize: fileSizeBytes,
-        fileSizeKB: (fileSizeBytes / 1024).toFixed(2),
-        mimeType: mime_type
-      });
+      // Heurística e codificação de erro
+      const looksScanned =
+        mime_type === 'application/pdf' &&
+        fileSizeBytes > 100000 &&
+        textWithoutSpaces.length < 200 &&
+        rawPdfParseLen < 50; // até o pdf-parse não encontrou texto útil
       
-      // Heurística robusta: só marcar como "escaneado" se:
-      // 1) É PDF válido (passou validação de header)
-      // 2) Tem tamanho razoável (> 100KB)
-      // 3) AMBAS as bibliotecas extraíram < 200 chars sem espaços após normalização
-      const isSuspectedScannedPdf = 
-        mime_type === 'application/pdf' && 
-        fileSizeBytes > 100000 && // PDF com mais de 100KB
-        textWithoutSpaces.length < 200; // mas quase nenhum texto real
+      const code = looksScanned ? 'SCANNED_PDF_SUSPECTED' : 'PDF_TEXT_ENCODING_ISSUE';
+      const hint = looksScanned
+        ? 'Este PDF parece ser escaneado (somente imagens). Por favor, cole o texto do CV manualmente no campo de texto.'
+        : 'O PDF possui fontes/encoding que impedem leitura de texto. Exporte novamente como PDF/A, salve como DOCX, ou cole o texto manualmente.';
       
       return new Response(
         JSON.stringify({ 
           error: 'Não foi possível extrair texto suficiente do arquivo',
-          hint: isSuspectedScannedPdf 
-            ? 'Este PDF parece ser escaneado (somente imagens). Por favor, cole o texto do CV manualmente no campo de texto.' 
-            : 'Não foi possível ler o conteúdo do arquivo. Tente converter para PDF novamente ou cole o texto manualmente.',
+          hint,
           extracted_length: extractedText.length,
           file_size: fileSizeBytes,
           file_size_kb: (fileSizeBytes / 1024).toFixed(2),
-          suspected_scanned_pdf: isSuspectedScannedPdf,
-          code: isSuspectedScannedPdf ? 'SCANNED_PDF_SUSPECTED' : 'PDF_TEXT_EXTRACTION_FAILED',
+          suspected_scanned_pdf: looksScanned,
+          code,
+          raw_pdfparse_text_length: rawPdfParseLen,
           methods_tried: mime_type === 'application/pdf' ? ['pdfjs-dist', 'pdf-parse'] : ['mammoth']
         }),
         { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

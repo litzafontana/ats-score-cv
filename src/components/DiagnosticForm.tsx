@@ -242,10 +242,22 @@ export function DiagnosticForm() {
       } else if (isInvalidPdf || isDownloadFailed) {
         toast({
           title: isDownloadFailed ? "Falha ao baixar o arquivo" : "Arquivo inválido",
-          description: errorData?.hint || "O arquivo não pôde ser processado. Tente fazer upload novamente ou cole o texto manualmente.",
+          description: errorData?.hint || "O link do arquivo pode ter expirado ou o PDF está corrompido. Reenvie o arquivo ou cole o texto.",
           variant: "destructive",
           duration: 8000
         });
+      } else if (errorData?.code === 'PDF_TEXT_ENCODING_ISSUE') {
+        toast({
+          title: "Texto do PDF ilegível",
+          description: errorData?.hint || "O PDF possui fontes/encoding que impedem a leitura automática. Exporte como PDF/A, envie em DOCX, ou cole o texto.",
+          variant: "destructive",
+          duration: 10000
+        });
+        setCvInputType("text");
+        setTimeout(() => {
+          const textarea = document.querySelector('textarea[placeholder*="currículo"]') as HTMLTextAreaElement;
+          textarea?.focus();
+        }, 300);
       } else {
         toast({
           title: "Erro na análise",
