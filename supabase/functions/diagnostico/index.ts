@@ -185,11 +185,18 @@ serve(async (req) => {
       });
     }
 
-    const { email, job_description } = payload;
+    const { email, job_url, job_description } = payload;
 
-    if (!email || !job_description) {
+    if (!email) {
       return new Response(
-        JSON.stringify({ error: 'Campos obrigatórios: email, job_description' }),
+        JSON.stringify({ error: 'Campo obrigatório: email' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!job_url && !job_description) {
+      return new Response(
+        JSON.stringify({ error: 'Obrigatório: job_url OU job_description' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -290,19 +297,60 @@ serve(async (req) => {
       });
     }
 
+    // ✅ PROCESSAR VAGA: scraping se for URL, caso contrário usar texto direto
+    let jobTextFinal = '';
+
+    if (job_url && !job_description) {
+      console.log('🌐 Detectado job_url, iniciando scraping:', job_url);
+      try {
+        const scraped = await scrapeJobPage(job_url);
+        if (scraped.ok && scraped.text) {
+          jobTextFinal = scraped.text;
+          console.log(`✅ Vaga extraída via scraping: ${jobTextFinal.length} caracteres`);
+        } else {
+          return new Response(JSON.stringify({
+            error: 'Não foi possível extrair o conteúdo da vaga desta URL',
+            code: 'JOB_SCRAPING_FAILED',
+            hint: 'O site pode estar bloqueando bots. Tente copiar e colar a descrição da vaga manualmente.',
+            url: job_url
+          }), { 
+            status: 422, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          });
+        }
+      } catch (scrapeError: any) {
+        console.error('❌ Erro ao fazer scraping da vaga:', scrapeError);
+        return new Response(JSON.stringify({
+          error: 'Erro ao acessar a URL da vaga',
+          code: 'JOB_SCRAPING_ERROR',
+          hint: 'Verifique se a URL está correta ou cole a descrição da vaga manualmente.',
+          details: scrapeError.message
+        }), { 
+          status: 422, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+    } else if (job_description) {
+      jobTextFinal = job_description.trim();
+      console.log('📝 Vaga recebida como texto:', jobTextFinal.length, 'caracteres');
+    }
+
     // Validação da vaga
-    if (!job_description || job_description.trim().length < 50) {
+    if (!jobTextFinal || jobTextFinal.trim().length < 50) {
       return new Response(JSON.stringify({
-        error: "Descrição da vaga muito curta",
-        code: "JOB_DESCRIPTION_TOO_SHORT"
+        error: "Descrição da vaga muito curta ou vazia",
+        code: "JOB_TEXT_TOO_SHORT",
+        hint: "A descrição da vaga deve ter pelo menos 50 caracteres úteis.",
+        extracted_length: jobTextFinal?.length || 0
       }), { 
-        status: 400, 
+        status: 422, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
     // Preparar para o restante do fluxo
     const cv_content = cvText;  // ✅ Garantido como string
+    const job_description_final = jobTextFinal;  // ✅ Garantido como string (scraped ou direto)
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -331,7 +379,7 @@ serve(async (req) => {
       resultadoParcial = await executarAnaliseReal({ 
         email, 
         cv_content,  // já é string aqui
-        job_description 
+        job_description: job_description_final  // usa texto final (scraped ou direto)
       });
       await supabase.from('usuarios_gratuitos')
         .update({ analises_realizadas: usuarioGratuito.analises_realizadas + 1 })
@@ -340,7 +388,7 @@ serve(async (req) => {
       resultadoParcial = await executarAnaliseSimulada({ 
         email, 
         cv_content, 
-        job_description 
+        job_description: job_description_final  // usa texto final (scraped ou direto)
       });
     }
 
@@ -349,7 +397,7 @@ serve(async (req) => {
       .insert({
         email: emailLowercase,
         cv_content: truncate(cv_content, 25000).trim(),
-        job_description: truncate(job_description, 20000).trim(),
+        job_description: truncate(job_description_final, 20000).trim(),
         nota_ats: resultadoParcial.nota_ats,
         alertas_top2: resultadoParcial.alertas_top2,
         json_result_rich: resultadoParcial.json_result_rich,
