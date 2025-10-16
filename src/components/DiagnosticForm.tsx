@@ -9,6 +9,7 @@ import { UploadArea } from "./UploadArea";
 import { Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { extractPdfInBrowser, extractDocxInBrowser, isPdf, isDocx } from "@/lib/cvExtractors";
 export function DiagnosticForm() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [email, setEmail] = useState("");
@@ -54,61 +55,118 @@ export function DiagnosticForm() {
       return;
     }
 
-    // Prepare CV content
+    // ========== PREPARAR CV ==========
     let cvContent: any = '';
-    if (cvInputType === "upload" && !cvFile) {
-      toast({
-        title: "CV obrigatório",
-        description: "Por favor, envie seu currículo.",
-        variant: "destructive"
-      });
-      return;
-    }
-    if (cvInputType === "text" && !cvText.trim()) {
-      toast({
-        title: "CV obrigatório",
-        description: "Por favor, cole o texto do seu currículo.",
-        variant: "destructive"
-      });
-      return;
-    }
     
-    // Upload file to Storage if needed
-    if (cvInputType === "upload" && cvFile) {
-      toast({
-        title: "Enviando arquivo",
-        description: "Fazendo upload do seu CV..."
-      });
-
-      const fileName = `${Date.now()}-${cvFile.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('cv-uploads')
-        .upload(fileName, cvFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) {
-        console.error("❌ Erro no upload:", uploadError);
+    if (cvInputType === "upload") {
+      if (!cvFile) {
         toast({
-          title: "Erro no upload",
-          description: "Não foi possível enviar o arquivo. Tente colar o texto.",
+          title: "CV obrigatório",
+          description: "Por favor, envie seu currículo.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Validar tamanho (máx 5MB)
+      if (cvFile.size > 5 * 1024 * 1024) {
+        toast({
+          title: "Arquivo muito grande",
+          description: "O arquivo deve ter no máximo 5MB.",
           variant: "destructive"
         });
         return;
       }
 
-      console.log("✅ Arquivo enviado:", uploadData.path);
+      // 🔥 NOVO: TENTAR EXTRAIR NO BROWSER PRIMEIRO
+      try {
+        console.log('🚀 [Browser] Tentando extrair texto localmente...');
+        
+        toast({
+          title: "Processando arquivo",
+          description: "Extraindo texto do seu CV..."
+        });
+
+        let extractedText = '';
+        
+        if (isPdf(cvFile)) {
+          console.log('📄 [Browser] Detectado PDF, usando pdfjs-dist no browser');
+          extractedText = await extractPdfInBrowser(cvFile);
+        } else if (isDocx(cvFile)) {
+          console.log('📄 [Browser] Detectado DOCX, usando mammoth no browser');
+          extractedText = await extractDocxInBrowser(cvFile);
+        } else {
+          throw new Error('Formato não suportado para extração no browser');
+        }
+
+        const textWithoutSpaces = extractedText.replace(/\s+/g, '');
+        console.log('📊 [Browser] Resultado:', {
+          length: extractedText.length,
+          textWithoutSpaces: textWithoutSpaces.length
+        });
+
+        // ✅ Se conseguiu texto suficiente (≥500 chars sem espaços), usar direto
+        if (textWithoutSpaces.length >= 500) {
+          console.log('✅ [Browser] Texto extraído com sucesso! Enviando direto como cv_content');
+          cvContent = extractedText;
+          
+          toast({
+            title: "Arquivo processado",
+            description: `${extractedText.length} caracteres extraídos com sucesso`
+          });
+        } else {
+          throw new Error('Texto extraído insuficiente (< 500 caracteres úteis)');
+        }
+        
+      } catch (browserError: any) {
+        // ❌ Se falhou no browser, cai no fluxo antigo (upload + backend parser)
+        console.warn('⚠️ [Browser] Extração falhou, usando backend parser:', browserError.message);
+        
+        toast({
+          title: "Enviando arquivo",
+          description: "Processando no servidor..."
+        });
+
+        const fileName = `${Date.now()}-${cvFile.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('cv-uploads')
+          .upload(fileName, cvFile, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error("❌ Erro no upload:", uploadError);
+          toast({
+            title: "Erro no upload",
+            description: "Não foi possível enviar o arquivo. Tente colar o texto.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        console.log("✅ Arquivo enviado para backend:", uploadData.path);
+        
+        // Preparar payload com metadata do arquivo (backend vai extrair)
+        cvContent = {
+          type: 'file',
+          storage_path: uploadData.path,
+          file_name: cvFile.name,
+          mime_type: cvFile.type,
+          size: cvFile.size
+        };
+      }
       
-      // Preparar payload com metadata do arquivo
-      cvContent = {
-        type: 'file',
-        storage_path: uploadData.path,
-        file_name: cvFile.name,
-        mime_type: cvFile.type,
-        size: cvFile.size
-      };
-    } else if (cvInputType === "text" && cvText.trim()) {
+    } else if (cvInputType === "text") {
+      // Modo "Colar texto"
+      if (!cvText.trim()) {
+        toast({
+          title: "CV obrigatório",
+          description: "Por favor, cole o texto do seu currículo.",
+          variant: "destructive"
+        });
+        return;
+      }
       cvContent = cvText.trim();
     }
 
