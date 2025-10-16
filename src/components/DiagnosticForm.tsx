@@ -193,11 +193,34 @@ export function DiagnosticForm() {
       window.location.href = `/resultado/${diagnosticoData.id}`;
     } catch (error: any) {
       console.error("❌ Erro na análise:", error);
-      toast({
-        title: "Erro na análise",
-        description: error.message || "Tente novamente em alguns momentos",
-        variant: "destructive"
-      });
+      
+      // Verificar se é erro de PDF escaneado
+      const errorData = error.context?.body;
+      if (errorData?.suspected_scanned_pdf) {
+        toast({
+          title: "PDF parece ser escaneado",
+          description: "Seu PDF contém apenas imagens. Por favor, cole o texto do CV no campo de texto.",
+          variant: "destructive",
+          duration: 8000
+        });
+        
+        // Trocar automaticamente para aba de texto
+        setCvInputType("text");
+        
+        // Focar no textarea após um pequeno delay
+        setTimeout(() => {
+          const textarea = document.querySelector('textarea[placeholder*="currículo"]') as HTMLTextAreaElement;
+          if (textarea) {
+            textarea.focus();
+          }
+        }, 300);
+      } else {
+        toast({
+          title: "Erro na análise",
+          description: error.message || "Tente novamente em alguns momentos",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsAnalyzing(false);
     }
