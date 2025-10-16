@@ -54,7 +54,7 @@ serve(async (req) => {
       try {
         const pdfParse = (await import('npm:pdf-parse@1.1.1')).default;
         const arrayBuffer = await fileData.arrayBuffer();
-        const pdfData = await pdfParse(Buffer.from(arrayBuffer));
+        const pdfData = await pdfParse(new Uint8Array(arrayBuffer));
         extractedText = pdfData.text;
         console.log('✅ PDF extraído:', extractedText.length, 'caracteres');
       } catch (error) {
@@ -76,7 +76,7 @@ serve(async (req) => {
       try {
         const mammoth = (await import('npm:mammoth@1.6.0')).default;
         const arrayBuffer = await fileData.arrayBuffer();
-        const result = await mammoth.extractRawText({ buffer: Buffer.from(arrayBuffer) });
+        const result = await mammoth.extractRawText({ buffer: new Uint8Array(arrayBuffer) });
         extractedText = result.value;
         console.log('✅ DOCX extraído:', extractedText.length, 'caracteres');
       } catch (error) {
