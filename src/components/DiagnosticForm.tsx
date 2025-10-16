@@ -198,21 +198,39 @@ export function DiagnosticForm() {
       console.error("❌ Erro na análise:", error);
       console.log("📊 Error context:", error.context);
       
-      // Verificar se é erro de PDF escaneado
-      // O erro pode vir em error.context.body (Supabase error format)
-      const errorData = error.context?.body;
-      console.log("📋 Error data:", errorData);
+      // Parsear erro do edge function
+      // O erro pode vir em error.context.body (formato Supabase)
+      // ou em error.message como JSON string
+      let errorData = error.context?.body;
       
-      if (errorData?.suspected_scanned_pdf === true) {
+      // Tentar parsear error.message se for JSON
+      if (!errorData && error.message) {
+        try {
+          errorData = JSON.parse(error.message);
+        } catch (_) {
+          // Não é JSON, usar como está
+        }
+      }
+      
+      console.log("📋 Error data parsed:", errorData);
+      
+      // Verificar flags específicos de erro
+      const isSuspectedScanned = errorData?.suspected_scanned_pdf === true || 
+                                  errorData?.code === 'SCANNED_PDF_SUSPECTED';
+      const isInvalidPdf = errorData?.code === 'INVALID_PDF_HEADER' || 
+                           errorData?.code === 'PDF_TOO_SMALL';
+      const isDownloadFailed = errorData?.code === 'DOWNLOAD_FAILED';
+      
+      if (isSuspectedScanned) {
+        // UX: mudar aba automaticamente para "Colar texto"
+        setCvInputType("text");
+        
         toast({
-          title: "PDF Escaneado Detectado",
-          description: errorData.hint || "Seu PDF contém apenas imagens. Por favor, cole o texto do CV no campo de texto.",
+          title: "PDF escaneado detectado",
+          description: errorData?.hint || "Este PDF contém apenas imagens. Cole o texto do seu currículo na aba 'Colar texto' para continuar.",
           variant: "destructive",
           duration: 10000
         });
-        
-        // Trocar automaticamente para aba de texto
-        setCvInputType("text");
         
         // Focar no textarea após um pequeno delay
         setTimeout(() => {
@@ -221,10 +239,17 @@ export function DiagnosticForm() {
             textarea.focus();
           }
         }, 300);
+      } else if (isInvalidPdf || isDownloadFailed) {
+        toast({
+          title: isDownloadFailed ? "Falha ao baixar o arquivo" : "Arquivo inválido",
+          description: errorData?.hint || "O arquivo não pôde ser processado. Tente fazer upload novamente ou cole o texto manualmente.",
+          variant: "destructive",
+          duration: 8000
+        });
       } else {
         toast({
           title: "Erro na análise",
-          description: error.message || "Tente novamente em alguns momentos",
+          description: errorData?.hint || error.message || "Tente novamente em alguns momentos",
           variant: "destructive"
         });
       }
