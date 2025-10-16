@@ -9,7 +9,7 @@ import { UploadArea } from "./UploadArea";
 import { Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { extractPdfInBrowser, extractDocxInBrowser, isPdf, isDocx } from "@/lib/cvExtractors";
+import { extractPdfInBrowser, isPdf, isDocx } from "@/lib/cvExtractors";
 export function DiagnosticForm() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [email, setEmail] = useState("");
@@ -178,47 +178,68 @@ export function DiagnosticForm() {
       cvPayload = { cv_content: cvText.trim() };
     }
 
-    // Prepare job description
-    let vagaTexto = '';
-    if (jobInputType === "url" && !jobUrl.trim()) {
-      toast({
-        title: "Vaga obrigatória",
-        description: "Por favor, insira o link da vaga.",
-        variant: "destructive"
-      });
-      return;
+    // ========== PREPARAR VAGA ==========
+    let jobPayload: { job_url?: string; job_description?: string } = {};
+
+    if (jobInputType === "url") {
+      if (!jobUrl.trim()) {
+        toast({
+          title: "Vaga obrigatória",
+          description: "Por favor, insira o link da vaga.",
+          variant: "destructive"
+        });
+        return;
+      }
+      jobPayload = { job_url: jobUrl.trim() };
+    } else {
+      if (!jobText.trim()) {
+        toast({
+          title: "Vaga obrigatória",
+          description: "Por favor, cole a descrição da vaga.",
+          variant: "destructive"
+        });
+        return;
+      }
+      jobPayload = { job_description: jobText.trim() };
     }
-    if (jobInputType === "text" && !jobText.trim()) {
-      toast({
-        title: "Vaga obrigatória",
-        description: "Por favor, cole a descrição da vaga.",
-        variant: "destructive"
-      });
-      return;
-    }
-    if (jobInputType === "url" && jobUrl.trim()) {
-      vagaTexto = `[URL da vaga: ${jobUrl.trim()}] - Conteúdo será extraído automaticamente`;
-    } else if (jobInputType === "text" && jobText.trim()) {
-      vagaTexto = jobText.trim();
-    }
+    // ========== VALIDAÇÕES ==========
     // Validar se há conteúdo do CV
-    const hasCvContent = cvPayload.cv_content || cvPayload.cv_file;
-
-    if (!vagaTexto.trim() || !hasCvContent) {
+    const hasCvContent = !!cvPayload.cv_content || !!cvPayload.cv_file;
+    if (!hasCvContent) {
       toast({
-        title: "Campos obrigatórios",
-        description: "Preencha a vaga e o currículo para continuar",
+        title: "CV obrigatório",
+        description: "Envie o currículo (arquivo ou texto).",
         variant: "destructive"
       });
       return;
     }
 
-    // Para upload com cv_file, pular validação de tamanho (será validada no backend)
-    // Para texto colado com cv_content, validar tamanho mínimo
-    if (cvPayload.cv_content && (vagaTexto.length < 50 || cvPayload.cv_content.length < 50)) {
+    // Validação por tipo de vaga
+    if (jobInputType === "text") {
+      if (!jobPayload.job_description || jobPayload.job_description.length < 50) {
+        toast({
+          title: "Conteúdo insuficiente",
+          description: "A descrição da vaga deve ter pelo menos 50 caracteres.",
+          variant: "destructive"
+        });
+        return;
+      }
+    } else {
+      if (!jobPayload.job_url || jobPayload.job_url.length < 10) {
+        toast({
+          title: "URL inválida",
+          description: "Insira um link válido da vaga.",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    // Se CV veio como texto, garantir também mínimo de 50 chars
+    if (cvPayload.cv_content && cvPayload.cv_content.length < 50) {
       toast({
-        title: "Conteúdo insuficiente",
-        description: "Vaga e currículo devem ter pelo menos 50 caracteres",
+        title: "CV insuficiente",
+        description: "O texto do currículo deve ter pelo menos 50 caracteres.",
         variant: "destructive"
       });
       return;
@@ -238,6 +259,7 @@ export function DiagnosticForm() {
 
       // Debug log para verificar estrutura do payload
       console.log("🔍 DEBUG cvPayload:", JSON.stringify(cvPayload, null, 2));
+      console.log("🔍 DEBUG jobPayload:", JSON.stringify(jobPayload, null, 2));
 
       // Chama a função diagnostico que implementa o controle de limite
       const {
@@ -247,7 +269,8 @@ export function DiagnosticForm() {
         body: {
           email: email.toLowerCase().trim(),
           ...cvPayload,
-          job_description: vagaTexto
+          ...jobPayload,
+          source: "web_form_v2"
         }
       });
       if (diagnosticoError) {
