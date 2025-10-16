@@ -10,37 +10,6 @@ import { Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { extractPdfInBrowser, isPdf, isDocx } from "@/lib/cvExtractors";
-
-// URL do microserviço Python de extração de PDF (fallback para PDFs complexos)
-const PYTHON_EXTRACTOR_URL = import.meta.env.VITE_PYTHON_EXTRACTOR_URL || 
-                             'https://pdf-extractor-xyz.onrender.com/extract';
-
-/**
- * Fallback: extrai texto de PDF usando microserviço Python (PyMuPDF)
- * Usado quando pdf.js falha em extrair texto suficiente (PDFs do Figma, etc)
- */
-async function extractWithPythonFallback(cvFile: File): Promise<string> {
-  console.log('🐍 [Python] Enviando PDF para microserviço PyMuPDF...');
-  
-  const formData = new FormData();
-  formData.append('file', cvFile);
-  
-  const response = await fetch(PYTHON_EXTRACTOR_URL, {
-    method: 'POST',
-    body: formData,
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Unknown error');
-    throw new Error(`Python extractor failed (${response.status}): ${errorText}`);
-  }
-  
-  const { text, chars, useful_chars } = await response.json();
-  console.log(`✅ [Python] PyMuPDF extraiu: ${chars} caracteres (${useful_chars} úteis)`);
-  
-  return String(text || '');
-}
-
 export function DiagnosticForm() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [email, setEmail] = useState("");
@@ -109,13 +78,15 @@ export function DiagnosticForm() {
         return;
       }
 
-      // 🔥 ETAPA 1: TENTAR EXTRAIR NO BROWSER (pdf.js - rápido e grátis)
+      // 🔥 NOVO: TENTAR EXTRAIR NO BROWSER PRIMEIRO (apenas PDF)
       try {
-        console.log('🚀 [Browser] Tentando pdf.js...');
+        console.log('🚀 [Browser] Tentando extrair texto localmente...');
         
         let extractedText = '';
         
         if (isPdf(cvFile)) {
+          console.log('📄 [Browser] Detectado PDF, usando pdfjs-dist no browser');
+          
           toast({
             title: "Processando PDF",
             description: "Extraindo texto do seu CV..."
@@ -123,147 +94,104 @@ export function DiagnosticForm() {
           
           extractedText = await extractPdfInBrowser(cvFile);
         } else if (isDocx(cvFile)) {
-          // DOCX: não suportado no browser, cair no backend
+          // DOCX: cair direto no backend parser (tem mammoth instalado)
+          console.log('📄 [Browser] DOCX detectado, usando backend parser');
           throw new Error('DOCX will use backend parser');
         } else {
           throw new Error('Formato não suportado');
         }
 
         const textWithoutSpaces = extractedText.replace(/\s+/g, '');
-        
-        // ✅ Se conseguiu ≥200 chars úteis → sucesso!
-        if (textWithoutSpaces.length >= 200) {
-          console.log('✅ [Browser] pdf.js funcionou!');
+        console.log('📊 [Browser] Resultado:', {
+          length: extractedText.length,
+          textWithoutSpaces: textWithoutSpaces.length
+        });
+
+        // ✅ Se conseguiu texto suficiente (≥500 chars sem espaços), usar direto
+        if (textWithoutSpaces.length >= 500) {
+          console.log('✅ [Browser] Texto extraído com sucesso! Enviando direto como cv_content');
           cvPayload = { cv_content: extractedText };
           
           toast({
-            title: "PDF processado",
-            description: `${extractedText.length} caracteres extraídos`
+            title: "Arquivo processado",
+            description: `${extractedText.length} caracteres extraídos com sucesso`
           });
         } else {
-          throw new Error('pdf.js extraiu muito pouco');
+          throw new Error('Texto extraído insuficiente (< 500 caracteres úteis)');
         }
         
       } catch (browserError: any) {
-        console.warn('⚠️ [Browser] pdf.js falhou:', browserError.message);
+        // ❌ Se falhou no browser, cai no fluxo antigo (upload + backend parser)
+        console.warn('⚠️ [Browser] Extração falhou, usando backend parser:', browserError.message);
         
-        // 🐍 ETAPA 2: FALLBACK PARA PYMUPDF (Python microservice - certeiro)
-        if (isPdf(cvFile)) {
-          try {
-            toast({
-              title: "Processando PDF complexo",
-              description: "Usando extrator avançado (PyMuPDF)...",
-              duration: 5000
-            });
-            
-            const extractedText = await extractWithPythonFallback(cvFile);
-            const textWithoutSpaces = extractedText.replace(/\s+/g, '');
-            
-            if (textWithoutSpaces.length >= 200) {
-              console.log('✅ [Python] PyMuPDF extraiu com sucesso!');
-              cvPayload = { cv_content: extractedText };
-              
-              toast({
-                title: "PDF complexo processado",
-                description: "Texto extraído com sucesso usando PyMuPDF"
-              });
-            } else {
-              throw new Error('PyMuPDF extraiu pouco texto');
-            }
-            
-          } catch (pythonError: any) {
-            console.error('❌ [Python] Fallback falhou:', pythonError.message);
-            
-            // 🆘 ETAPA 3: ÚLTIMO RECURSO → pedir pra colar texto
-            toast({
-              title: "PDF não suportado",
-              description: "Por favor, copie e cole o texto do CV na aba 'Colar CV'",
-              variant: "destructive",
-              duration: 10000
-            });
-            
-            setCvInputType("text");
-            setTimeout(() => {
-              const textarea = document.querySelector('textarea[placeholder*="currículo"]') as HTMLTextAreaElement;
-              textarea?.focus();
-            }, 300);
-            
-            setIsAnalyzing(false);
-            return;
-          }
-        } else {
-          // DOCX ou outro formato: usar backend parser (antigo fluxo)
-          console.warn('⚠️ [Browser] Usando backend parser para', cvFile.type);
-          
-          toast({
-            title: "Enviando arquivo",
-            description: "Processando no servidor..."
+        toast({
+          title: "Enviando arquivo",
+          description: "Processando no servidor..."
+        });
+
+        // Sanitizar nome do arquivo para evitar espaços/acentos que quebram a signed URL
+        const sanitize = (name: string) => {
+          const parts = name.split('.');
+          const ext = parts.length > 1 ? '.' + parts.pop() : '';
+          const base = parts.join('.')
+            .normalize('NFKD')
+            .replace(/\p{Diacritic}/gu, '')
+            .replace(/[^a-zA-Z0-9-_\.]+/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '')
+            .toLowerCase();
+          return `${base}${ext}` || `arquivo${ext}`;
+        };
+
+        const safeName = `${Date.now()}-${sanitize(cvFile.name)}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('cv-uploads')
+          .upload(safeName, cvFile, {
+            cacheControl: '3600',
+            upsert: false
           });
 
-          // Sanitizar nome do arquivo para evitar espaços/acentos que quebram a signed URL
-          const sanitize = (name: string) => {
-            const parts = name.split('.');
-            const ext = parts.length > 1 ? '.' + parts.pop() : '';
-            const base = parts.join('.')
-              .normalize('NFKD')
-              .replace(/\p{Diacritic}/gu, '')
-              .replace(/[^a-zA-Z0-9-_\.]+/g, '-')
-              .replace(/-+/g, '-')
-              .replace(/^-|-$/g, '')
-              .toLowerCase();
-            return `${base}${ext}` || `arquivo${ext}`;
-          };
-
-          const safeName = `${Date.now()}-${sanitize(cvFile.name)}`;
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('cv-uploads')
-            .upload(safeName, cvFile, {
-              cacheControl: '3600',
-              upsert: false
-            });
-
-          if (uploadError || !uploadData?.path) {
-            console.error("❌ Erro no upload:", uploadError);
-            toast({
-              title: "Erro no upload",
-              description: "Não foi possível enviar o arquivo. Tente colar o texto.",
-              variant: "destructive"
-            });
-            return;
-          }
-
-          console.log("✅ Arquivo enviado para backend:", uploadData.path);
-
-          // Gerar signed URL com retries (propagação do storage pode demorar alguns ms)
-          let signedUrl: string | undefined;
-          for (let attempt = 1; attempt <= 3; attempt++) {
-            const { data: signed } = await supabase.storage
-              .from('cv-uploads')
-              .createSignedUrl(uploadData.path, 3600);
-            if (signed?.signedUrl) { signedUrl = signed.signedUrl; break; }
-            await new Promise(r => setTimeout(r, 300));
-          }
-
-          if (!signedUrl) {
-            console.error('❌ Falha ao gerar signed URL para', uploadData.path);
-            toast({
-              title: 'Falha ao gerar link temporário',
-              description: 'Reenvie o arquivo ou cole o texto do seu CV.',
-              variant: 'destructive'
-            });
-            return;
-          }
-          
-          cvPayload = {
-            cv_file: {
-              name: cvFile.name,
-              size: cvFile.size,
-              mime: cvFile.type || 'application/octet-stream',
-              signed_url: signedUrl,
-              storage_path: uploadData.path
-            }
-          };
+        if (uploadError || !uploadData?.path) {
+          console.error("❌ Erro no upload:", uploadError);
+          toast({
+            title: "Erro no upload",
+            description: "Não foi possível enviar o arquivo. Tente colar o texto.",
+            variant: "destructive"
+          });
+          return;
         }
+
+        console.log("✅ Arquivo enviado para backend:", uploadData.path);
+
+        // Gerar signed URL com retries (propagação do storage pode demorar alguns ms)
+        let signedUrl: string | undefined;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const { data: signed } = await supabase.storage
+            .from('cv-uploads')
+            .createSignedUrl(uploadData.path, 3600);
+          if (signed?.signedUrl) { signedUrl = signed.signedUrl; break; }
+          await new Promise(r => setTimeout(r, 300));
+        }
+
+        if (!signedUrl) {
+          console.error('❌ Falha ao gerar signed URL para', uploadData.path);
+          toast({
+            title: 'Falha ao gerar link temporário',
+            description: 'Reenvie o arquivo ou cole o texto do seu CV.',
+            variant: 'destructive'
+          });
+          return;
+        }
+        
+        cvPayload = {
+          cv_file: {
+            name: cvFile.name,
+            size: cvFile.size,
+            mime: cvFile.type || 'application/octet-stream',
+            signed_url: signedUrl,
+            storage_path: uploadData.path
+          }
+        };
       }
       
     } else if (cvInputType === "text") {
