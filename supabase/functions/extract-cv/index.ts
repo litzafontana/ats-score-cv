@@ -1,11 +1,18 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.54.0';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Validation schema
+const ExtractCVInputSchema = z.object({
+  storage_path: z.string().min(1).max(500),
+  mime_type: z.string().min(1).max(100)
+});
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -14,14 +21,24 @@ serve(async (req) => {
   }
 
   try {
-    const { storage_path, mime_type } = await req.json();
+    const rawBody = await req.json();
 
-    if (!storage_path || !mime_type) {
+    // Validate input
+    const validationResult = ExtractCVInputSchema.safeParse(rawBody);
+    if (!validationResult.success) {
       return new Response(
-        JSON.stringify({ error: 'storage_path e mime_type são obrigatórios' }),
+        JSON.stringify({ 
+          error: 'Invalid input data',
+          details: validationResult.error.issues.map(issue => ({
+            path: issue.path.join('.'),
+            message: issue.message
+          }))
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { storage_path, mime_type } = validationResult.data;
 
     console.log('📄 Extraindo arquivo:', { storage_path, mime_type });
 

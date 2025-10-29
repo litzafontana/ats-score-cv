@@ -1,9 +1,33 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Allowed job posting domains (prevent SSRF attacks)
+const ALLOWED_DOMAINS = [
+  'linkedin.com',
+  'gupy.io',
+  'vagas.com.br',
+  'catho.com.br',
+  'infojobs.com.br',
+  'indeed.com',
+  'indeed.com.br',
+  'glassdoor.com',
+  'glassdoor.com.br',
+  'workana.com',
+  'trampos.co'
+];
+
+// Validation schema
+const ScrapeInputSchema = z.object({
+  urlOrText: z.string().min(1).max(100000)
+});
+
+// Timeout for fetch requests (10 seconds)
+const FETCH_TIMEOUT_MS = 10000;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,14 +35,45 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const urlOrText = String(body?.urlOrText ?? "");
+    const rawBody = await req.json().catch(() => ({}));
+    
+    // Validate input
+    const validationResult = ScrapeInputSchema.safeParse(rawBody);
+    if (!validationResult.success) {
+      return new Response(
+        JSON.stringify({ 
+          ok: false, 
+          text: "", 
+          reason: "invalid_input",
+          details: validationResult.error.issues
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { urlOrText } = validationResult.data;
 
     if (!urlOrText) {
       return new Response(
         JSON.stringify({ ok: false, text: "", reason: "empty_input" }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Check if it's a URL and validate domain
+    if (isLikelyUrl(urlOrText)) {
+      if (!isAllowedUrl(urlOrText)) {
+        return new Response(
+          JSON.stringify({ 
+            ok: false, 
+            text: "", 
+            reason: "domain_not_allowed",
+            allowed_domains: ALLOWED_DOMAINS,
+            hint: "Por favor, cole o texto da vaga diretamente ou use um site de vagas suportado"
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        );
+      }
     }
 
     const result = await getJobText(urlOrText);
@@ -44,6 +99,18 @@ const UA_DESKTOP =
 
 function isLikelyUrl(s: string) {
   try { new URL(s); return true; } catch { return false; }
+}
+
+function isAllowedUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    // Check if hostname ends with any allowed domain
+    return ALLOWED_DOMAINS.some(domain => 
+      parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function safeParse(txt?: string | null) {
@@ -76,6 +143,9 @@ function qualityOK(text: string) {
 }
 
 async function extractStatic(url: string) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
   try {
     const res = await fetch(url, {
       headers: {
@@ -85,7 +155,10 @@ async function extractStatic(url: string) {
       },
       redirect: "follow",
       cache: "no-store",
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!res.ok) return { ok: false as const, text: "" };
 
@@ -129,7 +202,12 @@ async function extractStatic(url: string) {
     }
 
     return { ok: false as const, text: "" };
-  } catch {
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('⏱️ Request timeout');
+      return { ok: false as const, text: "", reason: "timeout" as const };
+    }
+    console.error('❌ Fetch error:', error);
     return { ok: false as const, text: "" };
   }
 }

@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.54.0';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 // CORS headers
 const corsHeaders = {
@@ -8,10 +9,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface CheckoutRequest {
-  diagnostico_id: string;
-  email?: string;
-}
+// Validation schema
+const CheckoutRequestSchema = z.object({
+  diagnostico_id: z.string().uuid(),
+  email: z.string().email().max(255).optional()
+});
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -29,16 +31,25 @@ serve(async (req) => {
   try {
     console.log('💳 Iniciando processo de checkout...');
 
-    // Parse request body
-    const body: CheckoutRequest = await req.json();
-    const { diagnostico_id, email } = body;
-
-    if (!diagnostico_id) {
+    // Parse and validate request body
+    const rawBody = await req.json();
+    const validationResult = CheckoutRequestSchema.safeParse(rawBody);
+    
+    if (!validationResult.success) {
+      console.error('❌ Invalid checkout request:', validationResult.error.issues);
       return new Response(
-        JSON.stringify({ error: 'ID do diagnóstico é obrigatório' }),
+        JSON.stringify({ 
+          error: 'Invalid request data',
+          details: validationResult.error.issues.map(issue => ({
+            path: issue.path.join('.'),
+            message: issue.message
+          }))
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { diagnostico_id, email } = validationResult.data;
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

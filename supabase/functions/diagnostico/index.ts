@@ -1,12 +1,34 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.54.0';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 // ===================== CORS =====================
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// ===================== VALIDATION SCHEMAS =====================
+const DiagnosticInputSchema = z.object({
+  email: z.string().email().max(255),
+  cv_content: z.string().min(50).max(100000).optional(),
+  cv_file: z.object({
+    name: z.string().max(255),
+    size: z.number().positive().max(10485760), // 10MB max
+    mime: z.string().max(100),
+    signed_url: z.string().url().max(2048),
+    storage_path: z.string().max(500).optional()
+  }).optional(),
+  job_description: z.string().min(20).max(50000).optional(),
+  job_url: z.string().url().max(2048).optional()
+}).refine(
+  (data) => data.job_description || data.job_url,
+  { message: 'Either job_description or job_url is required' }
+).refine(
+  (data) => data.cv_content || data.cv_file,
+  { message: 'Either cv_content or cv_file is required' }
+);
 
 // ===================== TYPES =====================
 interface DiagnosticInput {
@@ -20,6 +42,7 @@ interface DiagnosticInput {
     storage_path?: string;
   };
   job_description: string; // pode ser texto OU URL
+  job_url?: string;
 }
 
 interface ResultadoParcial {
@@ -161,45 +184,38 @@ serve(async (req) => {
   }
 
   try {
-    const payload = await req.json();
+    const rawPayload = await req.json();
 
-    // DEBUG obrigatório
-    console.log("🔍 [DIAGNOSTICO] Payload recebido:", {
+    // Validate input with zod
+    const validationResult = DiagnosticInputSchema.safeParse(rawPayload);
+    
+    if (!validationResult.success) {
+      console.error('❌ Input validation failed:', validationResult.error.issues);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid input data',
+          details: validationResult.error.issues.map(issue => ({
+            path: issue.path.join('.'),
+            message: issue.message
+          }))
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const payload = validationResult.data;
+
+    // DEBUG
+    console.log("🔍 [DIAGNOSTICO] Validated payload:", {
       email: payload.email,
       has_cv_content: Boolean(payload.cv_content),
-      cv_content_type: typeof payload.cv_content,
-      cv_content_length: typeof payload.cv_content === 'string' ? payload.cv_content.length : 0,
+      cv_content_length: payload.cv_content?.length || 0,
       has_cv_file: Boolean(payload.cv_file),
-      cv_file_keys: payload.cv_file ? Object.keys(payload.cv_file) : []
+      has_job_description: Boolean(payload.job_description),
+      has_job_url: Boolean(payload.job_url)
     });
 
-    // ✅ FAIL-FAST: cv_content deve ser string se existir
-    if (payload.cv_content !== undefined && typeof payload.cv_content !== "string") {
-      return new Response(JSON.stringify({
-        error: "cv_content inválido (deve ser string). Use cv_file para enviar arquivo.",
-        code: "INVALID_CV_CONTENT_TYPE",
-        got_type: typeof payload.cv_content
-      }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
-
     const { email, job_url, job_description } = payload;
-
-    if (!email) {
-      return new Response(
-        JSON.stringify({ error: 'Campo obrigatório: email' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!job_url && !job_description) {
-      return new Response(
-        JSON.stringify({ error: 'Obrigatório: job_url OU job_description' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     // ✅ PRECEDÊNCIA: usar texto se veio pronto
     let cvText: string | null = null;

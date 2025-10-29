@@ -1,12 +1,16 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.54.0';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 // CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Validation schema
+const UUIDSchema = z.string().uuid();
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -31,6 +35,16 @@ serve(async (req) => {
     if (!id) {
       return new Response(
         JSON.stringify({ error: 'ID do diagnóstico é obrigatório' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate UUID format
+    const validationResult = UUIDSchema.safeParse(id);
+    if (!validationResult.success) {
+      console.error('❌ Invalid UUID format:', id);
+      return new Response(
+        JSON.stringify({ error: 'Invalid diagnostic ID format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
