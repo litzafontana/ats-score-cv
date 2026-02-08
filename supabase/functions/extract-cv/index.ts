@@ -376,12 +376,90 @@ serve(async (req) => {
         console.log('✅ DOCX extraído:', extractedText.length, 'caracteres');
         console.log('📝 Preview:', extractedText.substring(0, 200));
         
+        // ========== OCR VIA OPENAI VISION PARA DOCX COM IMAGENS ==========
+        
+        const uint8View = new Uint8Array(arrayBuffer);
+        const textWithoutSpaces = extractedText.replace(/\s+/g, '');
+        const fileSizeBytes = uint8View.length;
+        
+        // Heurística: arquivo grande (>100KB) com pouco texto (<100 chars) = provável DOCX com imagens (Canva/Figma)
+        if (textWithoutSpaces.length < 100 && fileSizeBytes > 100000 && OPENAI_API_KEY) {
+          console.log('🔍 DOCX parece ter conteúdo como imagem, tentando OCR via OpenAI Vision...');
+          
+          try {
+            // Converter DOCX para base64 para enviar à API
+            const base64Data = btoa(
+              Array.from(uint8View).map(byte => String.fromCharCode(byte)).join('')
+            );
+            
+            // Para DOCX, precisamos extrair as imagens internas
+            // Vamos tentar usar o modelo com o documento diretamente
+            const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                  {
+                    role: 'system',
+                    content: 'Você é um extrator de texto de currículos. O usuário vai enviar um arquivo DOCX que contém texto como imagem (criado com Canva, Figma ou similar). Extraia TODO o texto visível, preservando a estrutura de seções. Retorne APENAS o texto extraído, sem comentários.'
+                  },
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'text',
+                        text: 'Este arquivo DOCX foi criado com uma ferramenta de design que salva texto como imagem. Extraia todo o texto visível do currículo, preservando seções como Nome, Contato, Experiência, Formação, Habilidades, etc.'
+                      },
+                      {
+                        type: 'image_url',
+                        image_url: {
+                          url: `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${base64Data}`,
+                          detail: 'high'
+                        }
+                      }
+                    ]
+                  }
+                ],
+                max_tokens: 4096,
+                temperature: 0
+              })
+            });
+            
+            if (ocrResponse.ok) {
+              const ocrData = await ocrResponse.json();
+              const ocrText = ocrData.choices?.[0]?.message?.content || '';
+              
+              console.log('📝 OCR DOCX extraiu:', ocrText.length, 'caracteres');
+              console.log('📝 OCR DOCX preview:', ocrText.substring(0, 300));
+              
+              // Normalizar texto do OCR
+              const normalizedOcrText = (ocrText || '')
+                .normalize('NFKC')
+                .replace(/\s+/g, ' ')
+                .trim();
+              
+              if (normalizedOcrText.length > extractedText.length + 50) {
+                extractedText = normalizedOcrText;
+                console.log('✅ Usando resultado do OCR para DOCX (mais texto)');
+              }
+            } else {
+              const errorText = await ocrResponse.text();
+              console.warn('⚠️ OCR DOCX falhou:', ocrResponse.status, errorText);
+            }
+          } catch (ocrError) {
+            console.warn('⚠️ Erro no OCR DOCX:', ocrError);
+          }
+        }
+        
         // Se ainda assim extraiu 0 caracteres, pode ser DOCX corrompido ou formato especial
         if (extractedText.length === 0) {
-          console.warn('⚠️ DOCX extraiu 0 caracteres - possível formato não-padrão');
+          console.warn('⚠️ DOCX extraiu 0 caracteres após todas tentativas - formato não-padrão');
           
           // Log detalhado para debug
-          const uint8View = new Uint8Array(arrayBuffer);
           console.log('🔍 DOCX debug:', {
             size: uint8View.length,
             header: new TextDecoder().decode(uint8View.slice(0, 50)),
