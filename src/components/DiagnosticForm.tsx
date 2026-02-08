@@ -333,53 +333,80 @@ export function DiagnosticForm() {
       console.log("📋 Error data parsed:", errorData);
       
       // Verificar flags específicos de erro
+      const errorCode = errorData?.code || '';
       const isSuspectedScanned = errorData?.suspected_scanned_pdf === true || 
-                                  errorData?.code === 'SCANNED_PDF_SUSPECTED';
-      const isInvalidPdf = errorData?.code === 'INVALID_PDF_HEADER' || 
-                           errorData?.code === 'PDF_TOO_SMALL';
-      const isDownloadFailed = errorData?.code === 'DOWNLOAD_FAILED';
+                                  errorCode === 'SCANNED_PDF_SUSPECTED';
+      const isInvalidPdf = errorCode === 'INVALID_PDF_HEADER' || 
+                           errorCode === 'PDF_TOO_SMALL';
+      const isDownloadFailed = errorCode === 'DOWNLOAD_FAILED';
+      const isDocxFailed = errorCode === 'DOCX_EXTRACTION_FAILED' || 
+                           errorCode === 'DOCX_EMPTY_EXTRACTION';
+      const isEncodingIssue = errorCode === 'PDF_TEXT_ENCODING_ISSUE';
+      
+      // ========== TRATAMENTO DE ERROS COM UX MELHORADA ==========
       
       if (isSuspectedScanned) {
-        // UX: mudar aba automaticamente para "Colar texto"
+        // PDF escaneado: mudar aba automaticamente
         setCvInputType("text");
         
         toast({
-          title: "PDF escaneado detectado",
-          description: errorData?.hint || "Este PDF contém apenas imagens. Cole o texto do seu currículo na aba 'Colar texto' para continuar.",
+          title: "📷 PDF escaneado detectado",
+          description: "Este PDF contém apenas imagens. Cole o texto do seu currículo abaixo para continuar.",
           variant: "destructive",
           duration: 10000
         });
         
-        // Focar no textarea após um pequeno delay
-        setTimeout(() => {
-          const textarea = document.querySelector('textarea[placeholder*="currículo"]') as HTMLTextAreaElement;
-          if (textarea) {
-            textarea.focus();
-          }
-        }, 300);
-      } else if (isInvalidPdf || isDownloadFailed) {
-        toast({
-          title: isDownloadFailed ? "Falha ao baixar o arquivo" : "Arquivo inválido",
-          description: errorData?.hint || "O link do arquivo pode ter expirado ou o PDF está corrompido. Reenvie o arquivo ou cole o texto.",
-          variant: "destructive",
-          duration: 8000
-        });
-      } else if (errorData?.code === 'PDF_TEXT_ENCODING_ISSUE') {
-        toast({
-          title: "Texto do PDF ilegível",
-          description: errorData?.hint || "O PDF possui fontes/encoding que impedem a leitura automática. Exporte como PDF/A, envie em DOCX, ou cole o texto.",
-          variant: "destructive",
-          duration: 10000
-        });
-        setCvInputType("text");
+        // Focar no textarea
         setTimeout(() => {
           const textarea = document.querySelector('textarea[placeholder*="currículo"]') as HTMLTextAreaElement;
           textarea?.focus();
         }, 300);
+        
+      } else if (isDocxFailed) {
+        // DOCX com problema: mudar aba e dar dicas
+        setCvInputType("text");
+        
+        toast({
+          title: "📄 Não foi possível ler o DOCX",
+          description: errorData?.hint || "O arquivo pode ter sido criado com Canva ou outra ferramenta que salva como imagem. Cole o texto do currículo abaixo.",
+          variant: "destructive",
+          duration: 12000
+        });
+        
+        setTimeout(() => {
+          const textarea = document.querySelector('textarea[placeholder*="currículo"]') as HTMLTextAreaElement;
+          textarea?.focus();
+        }, 300);
+        
+      } else if (isEncodingIssue) {
+        // PDF com encoding especial
+        setCvInputType("text");
+        
+        toast({
+          title: "🔤 Texto do PDF ilegível",
+          description: "O PDF possui fontes especiais. Sugestões: (1) Exporte como PDF/A, (2) Salve como DOCX, ou (3) Cole o texto abaixo.",
+          variant: "destructive",
+          duration: 12000
+        });
+        
+        setTimeout(() => {
+          const textarea = document.querySelector('textarea[placeholder*="currículo"]') as HTMLTextAreaElement;
+          textarea?.focus();
+        }, 300);
+        
+      } else if (isInvalidPdf || isDownloadFailed) {
+        toast({
+          title: isDownloadFailed ? "⚠️ Falha ao baixar o arquivo" : "❌ Arquivo inválido",
+          description: errorData?.hint || "O link pode ter expirado ou o PDF está corrompido. Reenvie o arquivo ou cole o texto.",
+          variant: "destructive",
+          duration: 8000
+        });
+        
       } else {
+        // Erro genérico
         toast({
           title: "Erro na análise",
-          description: errorData?.hint || error.message || "Tente novamente em alguns momentos",
+          description: errorData?.hint || error.message || "Tente novamente em alguns momentos. Se persistir, cole o texto do CV.",
           variant: "destructive"
         });
       }
