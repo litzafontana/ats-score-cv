@@ -1,7 +1,9 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.54.0';
-import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { encodeBase64 } from "https://deno.land/std@0.168.0/encoding/base64.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.54.0";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { unzipSync } from "npm:fflate@0.8.2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -238,76 +240,16 @@ serve(async (req) => {
 
         extractedText = extractedPdfText;
         
-        // ========== OCR VIA OPENAI VISION PARA PDFs ESCANEADOS ==========
-        
+        // ========== OCR (PDF ESCANEADO) ==========
+        // Observação: a OpenAI Vision API aceita apenas *imagens* (png/jpg/webp).
+        // Um PDF escaneado precisaria ser renderizado em imagem antes do OCR, o que não
+        // está disponível de forma confiável no Edge Runtime.
+        // Portanto, aqui apenas detectamos e deixamos o erro/UX orientar o usuário.
         const textWithoutSpaces = extractedText.replace(/\s+/g, '');
         const fileSizeBytes = uint8Array.length;
-        
-        // Heurística: arquivo grande (>50KB) com pouco texto (<200 chars) = provável escaneado
-        if (textWithoutSpaces.length < 200 && fileSizeBytes > 50000 && OPENAI_API_KEY) {
-          console.log('🔍 PDF parece escaneado, tentando OCR via OpenAI Vision...');
-          
-          try {
-            // Converter PDF para base64 para enviar à API
-            const base64Data = btoa(
-              Array.from(uint8Array).map(byte => String.fromCharCode(byte)).join('')
-            );
-            
-            const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                  {
-                    role: 'system',
-                    content: 'Você é um extrator de texto de currículos. Extraia TODO o texto visível do documento, preservando a estrutura de seções. Retorne APENAS o texto extraído, sem comentários.'
-                  },
-                  {
-                    role: 'user',
-                    content: [
-                      {
-                        type: 'text',
-                        text: 'Extraia todo o texto deste currículo PDF. Preserve seções como Experiência, Formação, Habilidades, etc.'
-                      },
-                      {
-                        type: 'image_url',
-                        image_url: {
-                          url: `data:application/pdf;base64,${base64Data}`,
-                          detail: 'high'
-                        }
-                      }
-                    ]
-                  }
-                ],
-                max_tokens: 4096,
-                temperature: 0
-              })
-            });
-            
-            if (ocrResponse.ok) {
-              const ocrData = await ocrResponse.json();
-              const ocrText = ocrData.choices?.[0]?.message?.content || '';
-              
-              console.log('📝 OCR extraiu:', ocrText.length, 'caracteres');
-              console.log('📝 OCR preview:', ocrText.substring(0, 300));
-              
-              if (ocrText.length > extractedText.length + 100) {
-                extractedText = normalizeText(ocrText);
-                console.log('✅ Usando resultado do OCR (mais texto)');
-              }
-            } else {
-              const errorText = await ocrResponse.text();
-              console.warn('⚠️ OCR falhou:', ocrResponse.status, errorText);
-            }
-          } catch (ocrError) {
-            console.warn('⚠️ Erro no OCR:', ocrError);
-          }
+        if (textWithoutSpaces.length < 200 && fileSizeBytes > 50000) {
+          console.log('📷 PDF possivelmente escaneado (imagem) — OCR no Edge desativado');
         }
-        
         // ========== LOGGING COMPLETO ==========
         
         const wordCount = extractedText.trim().split(/\s+/).length;
@@ -376,82 +318,109 @@ serve(async (req) => {
         console.log('✅ DOCX extraído:', extractedText.length, 'caracteres');
         console.log('📝 Preview:', extractedText.substring(0, 200));
         
-        // ========== OCR VIA OPENAI VISION PARA DOCX COM IMAGENS ==========
-        
+        // ========== OCR (DOCX COM IMAGENS) ==========
+        // A Vision API só aceita imagens. Para DOCX do Canva/Figma, normalmente há imagens em word/media/*
+        // Então: unzip do DOCX → pegar imagens → OCR nelas.
         const uint8View = new Uint8Array(arrayBuffer);
         const textWithoutSpaces = extractedText.replace(/\s+/g, '');
         const fileSizeBytes = uint8View.length;
-        
-        // Heurística: arquivo grande (>100KB) com pouco texto (<100 chars) = provável DOCX com imagens (Canva/Figma)
-        if (textWithoutSpaces.length < 100 && fileSizeBytes > 100000 && OPENAI_API_KEY) {
-          console.log('🔍 DOCX parece ter conteúdo como imagem, tentando OCR via OpenAI Vision...');
-          
+
+        const isProbablyImageDocx = textWithoutSpaces.length < 100 && fileSizeBytes > 100000;
+        if (isProbablyImageDocx && OPENAI_API_KEY) {
+          console.log('🔍 DOCX parece imagem (Canva/Figma). Extraindo imagens internas para OCR...');
+
           try {
-            // Converter DOCX para base64 para enviar à API
-            const base64Data = btoa(
-              Array.from(uint8View).map(byte => String.fromCharCode(byte)).join('')
-            );
-            
-            // Para DOCX, precisamos extrair as imagens internas
-            // Vamos tentar usar o modelo com o documento diretamente
-            const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                  {
-                    role: 'system',
-                    content: 'Você é um extrator de texto de currículos. O usuário vai enviar um arquivo DOCX que contém texto como imagem (criado com Canva, Figma ou similar). Extraia TODO o texto visível, preservando a estrutura de seções. Retorne APENAS o texto extraído, sem comentários.'
-                  },
-                  {
-                    role: 'user',
-                    content: [
-                      {
-                        type: 'text',
-                        text: 'Este arquivo DOCX foi criado com uma ferramenta de design que salva texto como imagem. Extraia todo o texto visível do currículo, preservando seções como Nome, Contato, Experiência, Formação, Habilidades, etc.'
-                      },
-                      {
-                        type: 'image_url',
-                        image_url: {
-                          url: `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${base64Data}`,
-                          detail: 'high'
+            const unzip = unzipSync(uint8View);
+            const mediaEntries = Object.entries(unzip)
+              .filter(([path]) => path.startsWith('word/media/'))
+              .map(([path, bytes]) => ({ path, bytes: bytes as Uint8Array }));
+
+            console.log('🖼️ Imagens encontradas no DOCX:', mediaEntries.map(m => ({ path: m.path, size: m.bytes.length })));
+
+            // Pegar até 3 imagens (as maiores) para controlar custo/tempo
+            const selected = mediaEntries
+              .sort((a, b) => b.bytes.length - a.bytes.length)
+              .slice(0, 3);
+
+            const guessMime = (p: string) => {
+              const lower = p.toLowerCase();
+              if (lower.endsWith('.png')) return 'image/png';
+              if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+              if (lower.endsWith('.webp')) return 'image/webp';
+              return 'application/octet-stream';
+            };
+
+            let ocrCombined = '';
+
+            for (const img of selected) {
+              const mime = guessMime(img.path);
+              if (!mime.startsWith('image/')) continue;
+
+              const base64Image = encodeBase64(img.bytes);
+
+              const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: 'gpt-4o-mini',
+                  messages: [
+                    {
+                      role: 'system',
+                      content: 'Extraia TODO o texto visível do currículo na imagem. Preserve quebras por seção quando fizer sentido. Retorne APENAS o texto.'
+                    },
+                    {
+                      role: 'user',
+                      content: [
+                        {
+                          type: 'text',
+                          text: 'Extraia o texto completo desta imagem de currículo.'
+                        },
+                        {
+                          type: 'image_url',
+                          image_url: {
+                            url: `data:${mime};base64,${base64Image}`,
+                            detail: 'high'
+                          }
                         }
-                      }
-                    ]
-                  }
-                ],
-                max_tokens: 4096,
-                temperature: 0
-              })
-            });
-            
-            if (ocrResponse.ok) {
-              const ocrData = await ocrResponse.json();
-              const ocrText = ocrData.choices?.[0]?.message?.content || '';
-              
-              console.log('📝 OCR DOCX extraiu:', ocrText.length, 'caracteres');
-              console.log('📝 OCR DOCX preview:', ocrText.substring(0, 300));
-              
-              // Normalizar texto do OCR
-              const normalizedOcrText = (ocrText || '')
-                .normalize('NFKC')
-                .replace(/\s+/g, ' ')
-                .trim();
-              
-              if (normalizedOcrText.length > extractedText.length + 50) {
-                extractedText = normalizedOcrText;
-                console.log('✅ Usando resultado do OCR para DOCX (mais texto)');
+                      ]
+                    }
+                  ],
+                  max_tokens: 1800,
+                  temperature: 0
+                })
+              });
+
+              if (!ocrResponse.ok) {
+                const errorText = await ocrResponse.text();
+                console.warn('⚠️ OCR DOCX falhou para', img.path, ocrResponse.status, errorText);
+                continue;
               }
+
+              const ocrData = await ocrResponse.json();
+              const ocrText = (ocrData.choices?.[0]?.message?.content || '').trim();
+              console.log('📝 OCR imagem', img.path, '→', ocrText.length, 'caracteres');
+
+              if (ocrText) {
+                ocrCombined += (ocrCombined ? '\n\n' : '') + ocrText;
+              }
+            }
+
+            const normalizedOcrText = (ocrCombined || '')
+              .normalize('NFKC')
+              .replace(/\s+/g, ' ')
+              .trim();
+
+            if (normalizedOcrText.length > extractedText.length + 50) {
+              extractedText = normalizedOcrText;
+              console.log('✅ Usando resultado do OCR do DOCX (mais texto)');
             } else {
-              const errorText = await ocrResponse.text();
-              console.warn('⚠️ OCR DOCX falhou:', ocrResponse.status, errorText);
+              console.log('ℹ️ OCR do DOCX não gerou mais texto do que o mammoth');
             }
           } catch (ocrError) {
-            console.warn('⚠️ Erro no OCR DOCX:', ocrError);
+            console.warn('⚠️ Erro ao tentar OCR do DOCX via imagens:', ocrError);
           }
         }
         
