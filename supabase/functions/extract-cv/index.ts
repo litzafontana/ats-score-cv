@@ -14,6 +14,9 @@ const ExtractCVInputSchema = z.object({
   mime_type: z.string().min(1).max(100)
 });
 
+// Configuração do OCR via OpenAI Vision
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -67,7 +70,7 @@ serve(async (req) => {
     let extractedText = '';
 
     if (mime_type === 'application/pdf') {
-      // Para PDF: usar pdfjs-dist (método principal) com fallback para pdf-parse
+      // Para PDF: usar pdfjs-dist (método único - pdf-parse removido por incompatibilidade com Deno)
       try {
         const arrayBuffer = await fileData.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
@@ -233,47 +236,77 @@ serve(async (req) => {
         console.log('📊 Texto normalizado:', extractedPdfText.length, 'caracteres');
         console.log('📝 Preview normalizado:', extractedPdfText.substring(0, 300));
 
-        // ========== FALLBACK COM PDF-PARSE (MELHORADO) ==========
+        extractedText = extractedPdfText;
         
-        let pdfParseRawTextLength = 0;
-        if (extractedPdfText.length < 50) {
-          console.log('⚠️ Tentando fallback com pdf-parse...');
+        // ========== OCR VIA OPENAI VISION PARA PDFs ESCANEADOS ==========
+        
+        const textWithoutSpaces = extractedText.replace(/\s+/g, '');
+        const fileSizeBytes = uint8Array.length;
+        
+        // Heurística: arquivo grande (>50KB) com pouco texto (<200 chars) = provável escaneado
+        if (textWithoutSpaces.length < 200 && fileSizeBytes > 50000 && OPENAI_API_KEY) {
+          console.log('🔍 PDF parece escaneado, tentando OCR via OpenAI Vision...');
+          
           try {
-            const pdfParse = (await import('npm:pdf-parse@1.2.0')).default;
-            const pdfData = await pdfParse(uint8Array, {
-              max: 0, // sem limite de páginas
-              version: 'default' // Usar versão default (mais recente)
+            // Converter PDF para base64 para enviar à API
+            const base64Data = btoa(
+              Array.from(uint8Array).map(byte => String.fromCharCode(byte)).join('')
+            );
+            
+            const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                  {
+                    role: 'system',
+                    content: 'Você é um extrator de texto de currículos. Extraia TODO o texto visível do documento, preservando a estrutura de seções. Retorne APENAS o texto extraído, sem comentários.'
+                  },
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'text',
+                        text: 'Extraia todo o texto deste currículo PDF. Preserve seções como Experiência, Formação, Habilidades, etc.'
+                      },
+                      {
+                        type: 'image_url',
+                        image_url: {
+                          url: `data:application/pdf;base64,${base64Data}`,
+                          detail: 'high'
+                        }
+                      }
+                    ]
+                  }
+                ],
+                max_tokens: 4096,
+                temperature: 0
+              })
             });
             
-            // CRÍTICO: Logar o length ANTES da normalização
-            pdfParseRawTextLength = pdfData.text?.length || 0;
-            console.log('📊 pdf-parse metadata:', {
-              numpages: pdfData.numpages,
-              info: pdfData.info,
-              textLength: pdfParseRawTextLength // Antes da normalização
-            });
-            
-            console.log('📝 Preview pdf-parse (bruto):', (pdfData.text || '').substring(0, 300));
-            
-            // Normalizar DEPOIS de logar o length original
-            const fallbackText = normalizeText(pdfData.text || '');
-            console.log('📊 pdf-parse normalizado:', fallbackText.length, 'caracteres');
-            console.log('📝 Preview pdf-parse (normalizado):', fallbackText.substring(0, 300));
-            
-            // Usar o maior resultado (comparar DEPOIS da normalização)
-            if (fallbackText.length > extractedPdfText.length) {
-              extractedPdfText = fallbackText;
-              console.log('✅ Usando resultado de pdf-parse (maior)');
+            if (ocrResponse.ok) {
+              const ocrData = await ocrResponse.json();
+              const ocrText = ocrData.choices?.[0]?.message?.content || '';
+              
+              console.log('📝 OCR extraiu:', ocrText.length, 'caracteres');
+              console.log('📝 OCR preview:', ocrText.substring(0, 300));
+              
+              if (ocrText.length > extractedText.length + 100) {
+                extractedText = normalizeText(ocrText);
+                console.log('✅ Usando resultado do OCR (mais texto)');
+              }
+            } else {
+              const errorText = await ocrResponse.text();
+              console.warn('⚠️ OCR falhou:', ocrResponse.status, errorText);
             }
-          } catch (parseError) {
-            console.error('❌ Fallback pdf-parse também falhou:', parseError);
+          } catch (ocrError) {
+            console.warn('⚠️ Erro no OCR:', ocrError);
           }
         }
-
-        // Guardar para heurística final
-        (globalThis as any).__pdfParseRawTextLength = pdfParseRawTextLength;
-
-        extractedText = extractedPdfText;
         
         // ========== LOGGING COMPLETO ==========
         
@@ -307,26 +340,62 @@ serve(async (req) => {
       mime_type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
       mime_type === 'application/docx'
     ) {
-      // Para DOCX: usar mammoth
+      // Para DOCX: usar mammoth com Buffer.from() para compatibilidade
       try {
         const mammoth = (await import('npm:mammoth@1.6.0')).default;
         const arrayBuffer = await fileData.arrayBuffer();
-        const result = await mammoth.extractRawText({ buffer: new Uint8Array(arrayBuffer) });
         
-        // Normalizar texto
-        extractedText = result.value
-          .replace(/[^\x20-\x7E\n\r\t\u00A0-\u00FF\u0100-\u017F\u0180-\u024F]/g, ' ')
+        // CORREÇÃO: Usar Buffer.from() ao invés de Uint8Array diretamente
+        // mammoth espera um Buffer do Node, não Uint8Array puro
+        const { Buffer } = await import('node:buffer');
+        const nodeBuffer = Buffer.from(arrayBuffer);
+        
+        console.log('📄 DOCX buffer criado:', nodeBuffer.length, 'bytes');
+        
+        // Tentar com buffer object notation (mais robusto)
+        let result;
+        try {
+          result = await mammoth.extractRawText({ buffer: nodeBuffer });
+        } catch (bufferError) {
+          console.warn('⚠️ mammoth com buffer falhou, tentando arrayBuffer:', bufferError.message);
+          // Fallback: tentar com arrayBuffer direto
+          result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+        }
+        
+        console.log('📄 mammoth result:', { 
+          valueLength: result.value?.length,
+          messages: result.messages?.length
+        });
+        
+        // Normalizar texto (menos agressivo para preservar acentos)
+        extractedText = (result.value || '')
+          .normalize('NFKC')
           .replace(/\s+/g, ' ')
           .trim();
         
         console.log('✅ DOCX extraído:', extractedText.length, 'caracteres');
         console.log('📝 Preview:', extractedText.substring(0, 200));
+        
+        // Se ainda assim extraiu 0 caracteres, pode ser DOCX corrompido ou formato especial
+        if (extractedText.length === 0) {
+          console.warn('⚠️ DOCX extraiu 0 caracteres - possível formato não-padrão');
+          
+          // Log detalhado para debug
+          const uint8View = new Uint8Array(arrayBuffer);
+          console.log('🔍 DOCX debug:', {
+            size: uint8View.length,
+            header: new TextDecoder().decode(uint8View.slice(0, 50)),
+            isZip: uint8View[0] === 0x50 && uint8View[1] === 0x4B // PK = ZIP
+          });
+        }
+        
       } catch (error) {
         console.error('❌ Erro ao extrair DOCX:', error);
         return new Response(
           JSON.stringify({ 
             error: 'Erro ao processar DOCX',
-            hint: 'Tente colar o texto manualmente',
+            hint: 'O arquivo DOCX pode estar corrompido ou em formato não-padrão. Tente salvar como PDF ou cole o texto manualmente.',
+            code: 'DOCX_EXTRACTION_FAILED',
             details: error.message
           }),
           { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -367,7 +436,6 @@ serve(async (req) => {
     
     const trimmedText = (extractedText || '').trim();
     const textWithoutSpaces = trimmedText.replace(/\s+/g, '');
-    const rawPdfParseLen = (globalThis as any).__pdfParseRawTextLength || 0;
     
     if (!extractedText || trimmedText.length < 50) {
       // Obter tamanho do arquivo para heurística
@@ -381,22 +449,26 @@ serve(async (req) => {
         extractedLength: extractedText.length,
         extractedTrimmedLength: trimmedText.length,
         textWithoutSpaces: textWithoutSpaces.length,
-        rawPdfParseLen,
         wordCount: trimmedText.split(/\s+/).length,
-        charsDensity: (extractedText.length / fileSizeBytes * 100).toFixed(2) + '%'
+        charsDensity: (extractedText.length / fileSizeBytes * 100).toFixed(2) + '%',
+        mimeType: mime_type
       });
       
-      // Heurística e codificação de erro
-      const looksScanned =
-        mime_type === 'application/pdf' &&
-        fileSizeBytes > 100000 &&
-        textWithoutSpaces.length < 200 &&
-        rawPdfParseLen < 50; // até o pdf-parse não encontrou texto útil
+      // Determinar código de erro e mensagem baseado no tipo de arquivo
+      let code = 'EXTRACTION_FAILED';
+      let hint = 'Não foi possível extrair texto do arquivo. Cole o texto manualmente.';
+      let looksScanned = false;
       
-      const code = looksScanned ? 'SCANNED_PDF_SUSPECTED' : 'PDF_TEXT_ENCODING_ISSUE';
-      const hint = looksScanned
-        ? 'Este PDF parece ser escaneado (somente imagens). Por favor, cole o texto do CV manualmente no campo de texto.'
-        : 'O PDF possui fontes/encoding que impedem leitura de texto. Exporte novamente como PDF/A, salve como DOCX, ou cole o texto manualmente.';
+      if (mime_type === 'application/pdf') {
+        looksScanned = fileSizeBytes > 100000 && textWithoutSpaces.length < 200;
+        code = looksScanned ? 'SCANNED_PDF_SUSPECTED' : 'PDF_TEXT_ENCODING_ISSUE';
+        hint = looksScanned
+          ? 'Este PDF parece ser escaneado (somente imagens). Por favor, cole o texto do CV manualmente no campo de texto.'
+          : 'O PDF possui fontes/encoding que impedem leitura de texto. Exporte novamente como PDF/A, salve como DOCX, ou cole o texto manualmente.';
+      } else if (mime_type.includes('word') || mime_type.includes('document')) {
+        code = 'DOCX_EMPTY_EXTRACTION';
+        hint = 'O arquivo DOCX não contém texto extraível. Pode ter sido criado com ferramenta como Canva que salva como imagem. Abra no Word, salve novamente, ou cole o texto manualmente.';
+      }
       
       return new Response(
         JSON.stringify({ 
@@ -406,9 +478,7 @@ serve(async (req) => {
           file_size: fileSizeBytes,
           file_size_kb: (fileSizeBytes / 1024).toFixed(2),
           suspected_scanned_pdf: looksScanned,
-          code,
-          raw_pdfparse_text_length: rawPdfParseLen,
-          methods_tried: mime_type === 'application/pdf' ? ['pdfjs-dist', 'pdf-parse'] : ['mammoth']
+          code
         }),
         { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -433,15 +503,14 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
-    console.error('Erro na função extract-cv:', error);
+    console.error('❌ Erro geral na extração:', error);
     return new Response(
-      JSON.stringify({ error: 'Erro interno do servidor' }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ 
+        error: 'Erro ao processar arquivo',
+        details: error.message
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
